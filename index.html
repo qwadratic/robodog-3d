@@ -76,22 +76,17 @@ canvas { display: block; }
 }
 #hud .val { color: #7ae8b4; font-weight: bold; }
 
-#toggle-bar {
-  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-  z-index: 10; display: flex; gap: 8px;
+#toggle-hints {
+  position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%);
+  z-index: 10; font-size: 11px; color: #555; pointer-events: none;
+  background: rgba(8,8,16,0.5); padding: 8px 16px; border-radius: 6px;
+  backdrop-filter: blur(8px); white-space: nowrap;
 }
-#toggle-bar button {
-  padding: 12px 20px; font-size: 13px; font-family: inherit;
-  background: rgba(26,26,42,0.9); border: 1px solid #444; color: #999;
-  border-radius: 6px; cursor: pointer; transition: all 0.3s;
-  backdrop-filter: blur(12px); font-weight: 600;
+#toggle-hints kbd {
+  background: #1a1a2a; padding: 2px 6px; border-radius: 3px; border: 1px solid #444;
+  color: #888; margin: 0 2px; font-size: 11px;
 }
-#toggle-bar button.active { 
-  border-color: #7ae8b4; color: #7ae8b4; 
-  background: rgba(122, 232, 180, 0.1);
-  box-shadow: 0 0 15px rgba(122, 232, 180, 0.2);
-}
-#toggle-bar button:hover { border-color: #7ae8b4; color: #ccc; }
+#toggle-hints .on { color: #7ae8b4; }
 
 #minimap {
   position: fixed; bottom: 20px; right: 20px; z-index: 10;
@@ -188,10 +183,8 @@ canvas { display: block; }
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move &nbsp;
       <kbd>Mouse</kbd> Look &nbsp;
       <kbd>Shift</kbd> Sprint<br>
-      <kbd>P</kbd> Point Cloud &nbsp;
+      <kbd>P</kbd> Point Cloud overlay &nbsp;
       <kbd>G</kbd> Ghost Walls &nbsp;
-      <kbd>2</kbd> Model &nbsp;
-      <kbd>3</kbd> Both &nbsp;
       <kbd>ESC</kbd> Menu
     </div>
   </div>
@@ -212,10 +205,9 @@ canvas { display: block; }
 
 <div id="minimap"><canvas id="minimap-canvas"></canvas></div>
 
-<div id="toggle-bar">
-  <button id="btn-pc" title="Point Cloud (P)">☁ Points</button>
-  <button id="btn-model" class="active" title="Model (2)">🏠 Model</button>
-  <button id="btn-both" title="Both (3)">⚡ Both</button>
+<div id="toggle-hints">
+  <kbd>P</kbd> Points <span id="hint-pts">off</span> &nbsp;
+  <kbd>G</kbd> Ghost walls <span id="hint-ghost">off</span>
 </div>
 
 <div id="touch-controls">
@@ -301,7 +293,8 @@ async function main() {
   // Object groups
   modelGroup = new THREE.Group(); 
   scene.add(modelGroup);
-  pcGroup = new THREE.Group(); 
+  pcGroup = new THREE.Group();
+  pcGroup.visible = false;  // off by default, toggle with P
   scene.add(pcGroup);
 
   // Load ALL assets in parallel — browser already preloading from <link> tags
@@ -573,14 +566,8 @@ function setupEvents() {
       move[keyMap[e.code]] = true;
     }
     
-    // View toggles
-    if (e.code === 'Digit1') setView('pc');  // Legacy: point cloud mode
-    if (e.code === 'Digit2') setView('model');
-    if (e.code === 'Digit3') setView('both');
-    
-    // New feature hotkeys
-    if (e.code === 'KeyP') togglePointCloud();  // Point cloud overlay
-    if (e.code === 'KeyG') toggleGhostWalls();  // Ghost walls toggle
+    if (e.code === 'KeyP') togglePointCloud();
+    if (e.code === 'KeyG') toggleGhostWalls();
   });
   
   addEventListener('keyup', e => {
@@ -588,11 +575,6 @@ function setupEvents() {
       move[keyMap[e.code]] = false;
     }
   });
-
-  // Button controls
-  $('btn-pc').onclick = () => setView('pc');
-  $('btn-model').onclick = () => setView('model');
-  $('btn-both').onclick = () => setView('both');
 
   // Touch controls
   for (const [id, direction] of [
@@ -624,40 +606,18 @@ function setupEvents() {
 }
 
 /* ─── View Toggle ─── */
-function setView(mode) {
-  viewMode = mode;
-  
-  // Point cloud is now independent overlay (controlled by P key)
-  modelGroup.visible = mode === 'model' || mode === 'both';
-  
-  // Legacy point cloud button still works, but toggles overlay
-  if (mode === 'pc') {
-    pointCloudVisible = true;
-    pcGroup.visible = true;
-  } else {
-    pcGroup.visible = pointCloudVisible;  // Maintain overlay state
-  }
-  
-  document.querySelectorAll('#toggle-bar button').forEach(btn => {
-    btn.classList.remove('active');
-  });
-  $('btn-' + mode).classList.add('active');
-  
-  updateHUD();
-}
-
 function togglePointCloud() {
   pointCloudVisible = !pointCloudVisible;
   pcGroup.visible = pointCloudVisible;
-  console.log('Point cloud:', pointCloudVisible ? 'ON (overlay)' : 'OFF');
+  const el = $('hint-pts');
+  if (el) { el.textContent = pointCloudVisible ? 'on' : 'off'; el.className = pointCloudVisible ? 'on' : ''; }
 }
 
 function toggleGhostWalls() {
   ghostWallsVisible = !ghostWallsVisible;
-  if (ghostWallGroup) {
-    ghostWallGroup.visible = ghostWallsVisible;
-  }
-  console.log('Ghost walls:', ghostWallsVisible ? 'ON' : 'OFF');
+  if (ghostWallGroup) ghostWallGroup.visible = ghostWallsVisible;
+  const el = $('hint-ghost');
+  if (el) { el.textContent = ghostWallsVisible ? 'on' : 'off'; el.className = ghostWallsVisible ? 'on' : ''; }
 }
 
 /* ─── HUD Update ─── */
@@ -666,7 +626,10 @@ function updateHUD() {
   $('hud-pos').textContent = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
   $('hud-pts').textContent = totalPoints.toLocaleString();
   $('hud-tris').textContent = Math.round(totalTris).toLocaleString();
-  $('hud-mode').textContent = viewMode.toUpperCase();
+  const flags = [];
+  if (pointCloudVisible) flags.push('PTS');
+  if (ghostWallsVisible) flags.push('GHOST');
+  $('hud-mode').textContent = flags.length ? flags.join('+') : 'MODEL';
 }
 
 /* ─── Minimap ─── */
