@@ -2,9 +2,9 @@
 
 **Interactive Three.js viewer for LiDAR-reconstructed indoor spaces from a Unitree Go2 robot dog.**
 
-## 🚀 [Live Demo](https://gerhardgustav.github.io/robodog-3d/)
+## 🚀 [Live Demo](https://qwadratic.github.io/robodog-3d/)
 
-![Robodog 3D Screenshot](https://github.com/gerhardgustav/robodog-3d/assets/demo-screenshot.png)
+![Robodog 3D Screenshot](https://github.com/qwadratic/robodog-3d/assets/demo-screenshot.png)
 
 ## 🎯 What is this?
 
@@ -67,7 +67,7 @@ robodog-3d/
 
 ```bash
 # Clone the repository
-git clone https://github.com/gerhardgustav/robodog-3d.git
+git clone https://github.com/qwadratic/robodog-3d.git
 cd robodog-3d
 
 # Serve locally (required for CORS)
@@ -120,4 +120,4 @@ position.z = -mcap.y     // Y becomes -Z (forward)
 
 **Built with LiDAR data from a robot dog's indoor exploration.** 🐕‍🦺
 
-*Made by [@gerhardgustav](https://github.com/gerhardgustav)*
+*Made by [@qwadratic](https://github.com/qwadratic)*
