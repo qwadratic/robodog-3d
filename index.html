@@ -6,90 +6,120 @@
 <title>Robodog 3D — LiDAR Space Reconstruction</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { overflow: hidden; background: #06060c; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; color: #ccc; }
+body { overflow: hidden; background: #080810; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; color: #ccc; }
 canvas { display: block; }
 
 #blocker {
   position: fixed; inset: 0; z-index: 100;
-  background: rgba(6,6,12,0.92);
+  background: rgba(8,8,16,0.95);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
 }
 #blocker.hidden { display: none; }
 
 #splash {
-  text-align: center; max-width: 520px; padding: 40px;
+  text-align: center; max-width: 540px; padding: 40px;
 }
 #splash h1 {
-  font-size: 28px; color: #7ae8b4; margin-bottom: 8px; letter-spacing: 2px;
+  font-size: 32px; color: #7ae8b4; margin-bottom: 10px; letter-spacing: 3px;
+  text-shadow: 0 0 20px rgba(122, 232, 180, 0.3);
 }
-#splash .sub { color: #888; font-size: 13px; margin-bottom: 30px; }
+#splash .sub { color: #999; font-size: 14px; margin-bottom: 35px; line-height: 1.4; }
 #splash .start-btn {
-  display: inline-block; padding: 14px 36px; border: 1px solid #7ae8b4;
-  color: #7ae8b4; font-size: 15px; cursor: pointer; border-radius: 4px;
-  transition: all 0.2s; letter-spacing: 1px;
+  display: inline-block; padding: 16px 42px; border: 2px solid #7ae8b4;
+  color: #7ae8b4; font-size: 15px; cursor: pointer; border-radius: 6px;
+  transition: all 0.3s; letter-spacing: 1px; font-weight: bold;
+  background: rgba(122, 232, 180, 0.05);
 }
-#splash .start-btn:hover { background: #7ae8b4; color: #06060c; }
+#splash .start-btn:hover { 
+  background: #7ae8b4; color: #080810; 
+  box-shadow: 0 0 30px rgba(122, 232, 180, 0.4);
+}
 #splash .controls-hint {
-  margin-top: 24px; color: #666; font-size: 11px; line-height: 1.8;
+  margin-top: 28px; color: #666; font-size: 11px; line-height: 2;
 }
 #splash .controls-hint kbd {
-  background: #222; padding: 2px 7px; border-radius: 3px; border: 1px solid #444;
-  font-size: 11px; color: #aaa;
+  background: #1a1a2a; padding: 3px 8px; border-radius: 4px; border: 1px solid #444;
+  font-size: 11px; color: #bbb; margin: 0 2px;
 }
 
 #hud {
-  position: fixed; top: 12px; left: 12px; z-index: 10;
-  font-size: 11px; color: #556; pointer-events: none;
-  line-height: 1.6;
+  position: fixed; top: 15px; left: 15px; z-index: 10;
+  font-size: 12px; color: #667; pointer-events: none;
+  line-height: 1.8; background: rgba(8,8,16,0.6); padding: 15px;
+  border-radius: 8px; backdrop-filter: blur(10px);
+  border: 1px solid rgba(122, 232, 180, 0.1);
 }
-#hud .val { color: #7ae8b4; }
+#hud .val { color: #7ae8b4; font-weight: bold; }
 
 #toggle-bar {
-  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
-  z-index: 10; display: flex; gap: 6px;
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  z-index: 10; display: flex; gap: 8px;
 }
 #toggle-bar button {
-  padding: 8px 16px; font-size: 12px; font-family: inherit;
-  background: rgba(20,20,30,0.8); border: 1px solid #333; color: #888;
-  border-radius: 4px; cursor: pointer; transition: all 0.2s;
-  backdrop-filter: blur(8px);
+  padding: 12px 20px; font-size: 13px; font-family: inherit;
+  background: rgba(26,26,42,0.9); border: 1px solid #444; color: #999;
+  border-radius: 6px; cursor: pointer; transition: all 0.3s;
+  backdrop-filter: blur(12px); font-weight: 600;
 }
-#toggle-bar button.active { border-color: #7ae8b4; color: #7ae8b4; }
-#toggle-bar button:hover { border-color: #7ae8b4; color: #bbb; }
+#toggle-bar button.active { 
+  border-color: #7ae8b4; color: #7ae8b4; 
+  background: rgba(122, 232, 180, 0.1);
+  box-shadow: 0 0 15px rgba(122, 232, 180, 0.2);
+}
+#toggle-bar button:hover { border-color: #7ae8b4; color: #ccc; }
 
 #crosshair {
   position: fixed; top: 50%; left: 50%; z-index: 10;
-  width: 16px; height: 16px; transform: translate(-50%, -50%);
-  pointer-events: none; opacity: 0.3;
+  width: 20px; height: 20px; transform: translate(-50%, -50%);
+  pointer-events: none; opacity: 0.4;
 }
 #crosshair::before, #crosshair::after {
   content: ''; position: absolute; background: #7ae8b4;
+  box-shadow: 0 0 6px rgba(122, 232, 180, 0.5);
 }
-#crosshair::before { width: 1px; height: 16px; left: 7.5px; top: 0; }
-#crosshair::after { width: 16px; height: 1px; top: 7.5px; left: 0; }
+#crosshair::before { width: 2px; height: 20px; left: 9px; top: 0; }
+#crosshair::after { width: 20px; height: 2px; top: 9px; left: 0; }
 
 #loading {
   position: fixed; inset: 0; z-index: 200;
-  background: #06060c; display: flex; align-items: center; justify-content: center;
+  background: #080810; display: flex; align-items: center; justify-content: center;
   flex-direction: column;
 }
 #loading.hidden { display: none; }
-#loading h2 { color: #7ae8b4; font-size: 16px; margin-bottom: 16px; }
-#loading .bar { width: 200px; height: 3px; background: #1a1a2a; border-radius: 2px; overflow: hidden; }
-#loading .bar-fill { height: 100%; background: #7ae8b4; width: 0%; transition: width 0.3s; }
-#loading .status { color: #556; font-size: 11px; margin-top: 10px; }
+#loading h2 { 
+  color: #7ae8b4; font-size: 18px; margin-bottom: 20px; 
+  text-shadow: 0 0 20px rgba(122, 232, 180, 0.3);
+}
+#loading .bar { 
+  width: 240px; height: 4px; background: #1a1a2a; border-radius: 3px; overflow: hidden;
+  border: 1px solid #333;
+}
+#loading .bar-fill { 
+  height: 100%; background: linear-gradient(90deg, #7ae8b4, #5ac99a); 
+  width: 0%; transition: width 0.4s; box-shadow: 0 0 10px rgba(122, 232, 180, 0.5);
+}
+#loading .status { color: #667; font-size: 12px; margin-top: 12px; }
 
 #touch-controls {
-  display: none; position: fixed; bottom: 80px; z-index: 10;
+  display: none; position: fixed; bottom: 100px; z-index: 10;
 }
 @media (pointer: coarse) {
-  #touch-controls { display: flex; gap: 8px; left: 16px; }
+  #touch-controls { display: flex; gap: 10px; left: 20px; }
   #touch-controls button {
-    width: 52px; height: 52px; border-radius: 50%; border: 1px solid #444;
-    background: rgba(20,20,30,0.7); color: #7ae8b4; font-size: 18px;
+    width: 56px; height: 56px; border-radius: 50%; border: 2px solid #555;
+    background: rgba(26,26,42,0.8); color: #7ae8b4; font-size: 20px;
     display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(8px);
   }
+}
+
+.fps-counter {
+  position: fixed; top: 15px; right: 15px; z-index: 10;
+  background: rgba(8,8,16,0.6); padding: 8px 12px;
+  border-radius: 6px; backdrop-filter: blur(10px);
+  border: 1px solid rgba(122, 232, 180, 0.1);
+  font-size: 11px; color: #667;
 }
 </style>
 </head>
@@ -104,7 +134,10 @@ canvas { display: block; }
 <div id="blocker" class="hidden">
   <div id="splash">
     <h1>🐕 ROBODOG 3D</h1>
-    <div class="sub">LiDAR-reconstructed indoor space from a Unitree Go2 robot dog</div>
+    <div class="sub">
+      LiDAR-reconstructed indoor space from a Unitree Go2 robot dog<br>
+      84,750 points • 21,252 triangles • Wall connectivity bridges
+    </div>
     <div class="start-btn" id="start-btn">ENTER SPACE</div>
     <div class="controls-hint">
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move &nbsp;
@@ -121,9 +154,13 @@ canvas { display: block; }
 <div id="crosshair"></div>
 
 <div id="hud">
-  <div>POS <span class="val" id="hud-pos">0, 0, 0</span></div>
+  <div>POS <span class="val" id="hud-pos">0.0, 0.0, 0.0</span></div>
   <div>PTS <span class="val" id="hud-pts">—</span> &nbsp; TRIS <span class="val" id="hud-tris">—</span></div>
   <div>VIEW <span class="val" id="hud-mode">BOTH</span></div>
+</div>
+
+<div class="fps-counter">
+  <span id="fps-display">60 FPS</span>
 </div>
 
 <div id="toggle-bar">
@@ -153,201 +190,391 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
-/* ─── state ─── */
+/* ─── State ─── */
 let scene, camera, renderer, controls;
-let modelGroup, pcGroup, flashLight, flashTarget;
+let modelGroup, pcGroup, flashLight, flashTarget, trajLine;
 const clock = new THREE.Clock();
 let viewMode = 'both';
 let totalPoints = 0, totalTris = 0;
-let trajData = null;
+let metadata = null;
 
 const move = { fwd:false, back:false, left:false, right:false, sprint:false };
-const WALK = 3.0, SPRINT = 8.0;
+const WALK = 3.5, SPRINT = 10.0;
 const vel = new THREE.Vector3();
 const dir = new THREE.Vector3();
 
+// FPS tracking
+let frameCount = 0, lastTime = 0;
 const $ = id => document.getElementById(id);
 const setProgress = (p, m) => { $('load-bar').style.width = p+'%'; if(m) $('load-status').textContent = m; };
 
-/* ─── main ─── */
+/* ─── Main ─── */
 async function main() {
+  // Scene setup
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x06060c);
-  scene.fog = new THREE.FogExp2(0x06060c, 0.035);
+  scene.background = new THREE.Color(0x080810);
+  scene.fog = new THREE.FogExp2(0x080810, 0.028);
 
-  camera = new THREE.PerspectiveCamera(80, innerWidth/innerHeight, 0.05, 100);
+  // Camera
+  camera = new THREE.PerspectiveCamera(85, innerWidth/innerHeight, 0.05, 120);
+  camera.position.set(1.5, 1.2, 4.0); // Default position
 
-  renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+  // Renderer
+  renderer = new THREE.WebGLRenderer({ 
+    antialias: true, 
+    powerPreference: 'high-performance',
+    alpha: false
+  });
   renderer.setSize(innerWidth, innerHeight);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = 1.1;
   document.body.appendChild(renderer.domElement);
 
+  // Controls
   controls = new PointerLockControls(camera, document.body);
 
-  /* lighting */
-  scene.add(new THREE.AmbientLight(0x334455, 0.4));
-  scene.add(new THREE.HemisphereLight(0x8899aa, 0x222233, 0.3));
-  flashTarget = new THREE.Object3D(); scene.add(flashTarget);
-  flashLight = new THREE.SpotLight(0xffe8cc, 3, 20, Math.PI*0.4, 0.4, 1.5);
+  // Lighting setup
+  scene.add(new THREE.AmbientLight(0x334466, 0.35));
+  
+  const hemiLight = new THREE.HemisphereLight(0x8899bb, 0x223344, 0.25);
+  scene.add(hemiLight);
+  
+  // Flashlight
+  flashTarget = new THREE.Object3D(); 
+  scene.add(flashTarget);
+  flashLight = new THREE.SpotLight(0xffe8cc, 4, 25, Math.PI*0.35, 0.3, 1.2);
+  flashLight.castShadow = true;
+  flashLight.shadow.mapSize.width = 1024;
+  flashLight.shadow.mapSize.height = 1024;
   scene.add(flashLight);
 
-  modelGroup = new THREE.Group(); scene.add(modelGroup);
-  pcGroup    = new THREE.Group(); scene.add(pcGroup);
+  // Object groups
+  modelGroup = new THREE.Group(); 
+  scene.add(modelGroup);
+  pcGroup = new THREE.Group(); 
+  scene.add(pcGroup);
 
-  /* load assets */
-  setProgress(5, 'Loading trajectory…');
-  try { trajData = await (await fetch('assets/trajectory.json')).json(); buildTrajectory(); } catch(e){}
-  setProgress(15, 'Loading point cloud…');
-  try { buildPointCloud(await (await fetch('assets/pointcloud.bin')).arrayBuffer()); } catch(e){}
-  setProgress(50, 'Loading 3D model…');
+  // Load assets
   try {
-    const gltf = await new Promise((ok,err)=>{
-      new GLTFLoader().load('assets/model.glb', ok,
-        x=>{ setProgress(50+(x.loaded/x.total)*40, 'Loading 3D model…'); }, err);
-    });
-    buildModel(gltf);
-  } catch(e){}
+    setProgress(5, 'Loading metadata…');
+    metadata = await (await fetch('assets/metadata.json')).json();
+    
+    setProgress(15, 'Loading trajectory…');
+    await buildTrajectory();
+    
+    setProgress(25, 'Loading point cloud…');
+    await buildPointCloud();
+    
+    setProgress(60, 'Loading 3D model…');
+    await buildModel();
+    
+    // Set camera start position
+    if (metadata && metadata.robotStart) {
+      const [x, y, z] = metadata.robotStart;
+      camera.position.set(x, z + 1.2, -y); // Convert Z-up to Y-up
+    }
+    
+    setProgress(100, 'Ready!');
+    setTimeout(() => {
+      $('loading').classList.add('hidden'); 
+      $('blocker').classList.remove('hidden');
+    }, 400);
+    
+  } catch (e) {
+    console.error('Loading failed:', e);
+    $('load-status').textContent = 'Loading failed. Check console.';
+  }
 
-  /* camera start */
-  if (trajData) { const s=trajData.start; camera.position.set(s[0], s[2]+0.6, -s[1]); }
-  else camera.position.set(1.5, 0.9, 4.0);
-
-  setProgress(100,'Ready!');
-  setTimeout(()=>{ $('loading').classList.add('hidden'); $('blocker').classList.remove('hidden'); }, 300);
-
-  events();
+  setupEvents();
   updateHUD();
   tick();
 }
 
-/* ─── trajectory ─── */
-function buildTrajectory() {
-  const pts = trajData.points;
-  const pos = new Float32Array(pts.length*3);
-  for (let i=0;i<pts.length;i++) { pos[i*3]=pts[i][0]; pos[i*3+1]=pts[i][2]+0.05; pos[i*3+2]=-pts[i][1]; }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  scene.add(new THREE.Line(g, new THREE.LineBasicMaterial({color:0x4488ff, transparent:true, opacity:0.45})));
-}
-
-/* ─── point cloud ─── */
-function buildPointCloud(buf) {
-  const v = new DataView(buf);
-  const n = v.getUint32(0, true);
-  totalPoints = n;
-  const BPP = 15; // 3×f32 + 3×u8
-  const pos = new Float32Array(n*3);
-  const col = new Float32Array(n*3);
-  for (let i=0;i<n;i++) {
-    const o = 4 + i*BPP;
-    const mx = v.getFloat32(o,    true);
-    const my = v.getFloat32(o+4,  true);
-    const mz = v.getFloat32(o+8,  true);
-    pos[i*3]   = mx;
-    pos[i*3+1] = mz;     // mcap Z → three Y (up)
-    pos[i*3+2] = -my;    // mcap Y → -three Z
-    col[i*3]   = v.getUint8(o+12)/255;
-    col[i*3+1] = v.getUint8(o+13)/255;
-    col[i*3+2] = v.getUint8(o+14)/255;
+/* ─── Trajectory ─── */
+async function buildTrajectory() {
+  try {
+    const trajData = await (await fetch('assets/trajectory.json')).json();
+    const positions = new Float32Array(trajData.length * 3);
+    
+    for (let i = 0; i < trajData.length; i++) {
+      const [x, y, z] = trajData[i];
+      positions[i*3] = x;        // X stays X
+      positions[i*3+1] = z + 0.05; // Z -> Y (up), lifted slightly
+      positions[i*3+2] = -y;     // Y -> -Z (forward)
+    }
+    
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    
+    const material = new THREE.LineBasicMaterial({ 
+      color: 0x4488ff, 
+      transparent: true, 
+      opacity: 0.6,
+      linewidth: 2 
+    });
+    
+    trajLine = new THREE.Line(geometry, material);
+    scene.add(trajLine);
+    
+  } catch (e) {
+    console.warn('Failed to load trajectory:', e);
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  g.setAttribute('color',    new THREE.BufferAttribute(col, 3));
-  pcGroup.add(new THREE.Points(g, new THREE.PointsMaterial({
-    size:0.06, vertexColors:true, sizeAttenuation:true, transparent:true, opacity:0.85
-  })));
 }
 
-/* ─── model ─── */
-function buildModel(gltf) {
-  const m = gltf.scene;
-  m.rotation.x = -Math.PI/2;   // MCAP→Three.js coordinate swap
-  m.traverse(c => {
-    if (c.isMesh) {
-      totalTris += c.geometry.index ? c.geometry.index.count/3 : c.geometry.attributes.position.count/3;
-      if (c.material) { c.material.vertexColors=true; c.material.side=THREE.DoubleSide; c.material.roughness=0.8; c.material.metalness=0; }
+/* ─── Point Cloud ─── */
+async function buildPointCloud() {
+  try {
+    const buffer = await (await fetch('assets/pointcloud.bin')).arrayBuffer();
+    const view = new DataView(buffer);
+    
+    // Binary format: x,y,z,r,g,b (6 float32s per point)
+    const numPoints = buffer.byteLength / (6 * 4); // 6 floats × 4 bytes each
+    totalPoints = numPoints;
+    
+    const positions = new Float32Array(numPoints * 3);
+    const colors = new Float32Array(numPoints * 3);
+    
+    for (let i = 0; i < numPoints; i++) {
+      const offset = i * 6 * 4; // 6 floats × 4 bytes
+      
+      const x = view.getFloat32(offset + 0, true);
+      const y = view.getFloat32(offset + 4, true);
+      const z = view.getFloat32(offset + 8, true);
+      const r = view.getFloat32(offset + 12, true);
+      const g = view.getFloat32(offset + 16, true);
+      const b = view.getFloat32(offset + 20, true);
+      
+      // Convert coordinates: MCAP Z-up → Three.js Y-up
+      positions[i*3] = x;     // X stays X
+      positions[i*3+1] = z;   // Z becomes Y (up)
+      positions[i*3+2] = -y;  // Y becomes -Z (forward)
+      
+      colors[i*3] = r;
+      colors[i*3+1] = g;
+      colors[i*3+2] = b;
+    }
+    
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    
+    const material = new THREE.PointsMaterial({
+      size: 0.08,
+      vertexColors: true,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending
+    });
+    
+    const points = new THREE.Points(geometry, material);
+    pcGroup.add(points);
+    
+  } catch (e) {
+    console.error('Failed to load point cloud:', e);
+  }
+}
+
+/* ─── Model ─── */
+async function buildModel() {
+  try {
+    const gltf = await new Promise((resolve, reject) => {
+      new GLTFLoader().load(
+        'assets/model.glb',
+        resolve,
+        (progress) => {
+          const percent = 60 + (progress.loaded / progress.total) * 35;
+          setProgress(percent, 'Loading 3D model…');
+        },
+        reject
+      );
+    });
+    
+    const model = gltf.scene;
+    
+    // Convert coordinates: rotate to match Three.js Y-up
+    model.rotation.x = -Math.PI / 2;
+    
+    // Process model
+    model.traverse(child => {
+      if (child.isMesh) {
+        // Count triangles
+        const geom = child.geometry;
+        if (geom.index) {
+          totalTris += geom.index.count / 3;
+        } else {
+          totalTris += geom.attributes.position.count / 3;
+        }
+        
+        // Configure materials
+        if (child.material) {
+          child.material.vertexColors = true;
+          child.material.side = THREE.DoubleSide;
+          child.material.roughness = 0.8;
+          child.material.metalness = 0.1;
+          child.receiveShadow = true;
+          child.castShadow = true;
+        }
+      }
+    });
+    
+    modelGroup.add(model);
+    
+  } catch (e) {
+    console.error('Failed to load model:', e);
+  }
+}
+
+/* ─── Events ─── */
+function setupEvents() {
+  // Start button and pointer lock
+  $('start-btn').onclick = () => controls.lock();
+  $('blocker').onclick = e => { 
+    if (e.target === $('blocker')) controls.lock(); 
+  };
+  
+  controls.addEventListener('lock', () => {
+    $('blocker').classList.add('hidden');
+  });
+  
+  controls.addEventListener('unlock', () => {
+    $('blocker').classList.remove('hidden');
+  });
+
+  // Movement keys
+  const keyMap = {
+    KeyW: 'fwd', ArrowUp: 'fwd',
+    KeyS: 'back', ArrowDown: 'back',
+    KeyA: 'left', ArrowLeft: 'left',
+    KeyD: 'right', ArrowRight: 'right',
+    ShiftLeft: 'sprint', ShiftRight: 'sprint'
+  };
+  
+  addEventListener('keydown', e => {
+    if (keyMap[e.code]) {
+      move[keyMap[e.code]] = true;
+    }
+    
+    // View toggles
+    if (e.code === 'Digit1') setView('pc');
+    if (e.code === 'Digit2') setView('model');
+    if (e.code === 'Digit3') setView('both');
+  });
+  
+  addEventListener('keyup', e => {
+    if (keyMap[e.code]) {
+      move[keyMap[e.code]] = false;
     }
   });
-  modelGroup.add(m);
-}
 
-/* ─── events ─── */
-function events() {
-  $('start-btn').onclick = ()=> controls.lock();
-  $('blocker').onclick = e => { if(e.target===$('blocker')) controls.lock(); };
-  controls.addEventListener('lock',   ()=> $('blocker').classList.add('hidden'));
-  controls.addEventListener('unlock', ()=> $('blocker').classList.remove('hidden'));
+  // Button controls
+  $('btn-pc').onclick = () => setView('pc');
+  $('btn-model').onclick = () => setView('model');
+  $('btn-both').onclick = () => setView('both');
 
-  const km = { KeyW:'fwd',ArrowUp:'fwd', KeyS:'back',ArrowDown:'back',
-               KeyA:'left',ArrowLeft:'left', KeyD:'right',ArrowRight:'right',
-               ShiftLeft:'sprint',ShiftRight:'sprint' };
-  addEventListener('keydown', e=>{
-    if(km[e.code]) move[km[e.code]]=true;
-    if(e.code==='Digit1') setView('pc');
-    if(e.code==='Digit2') setView('model');
-    if(e.code==='Digit3') setView('both');
-  });
-  addEventListener('keyup', e=>{ if(km[e.code]) move[km[e.code]]=false; });
-
-  $('btn-pc').onclick    = ()=>setView('pc');
-  $('btn-model').onclick = ()=>setView('model');
-  $('btn-both').onclick  = ()=>setView('both');
-
-  /* touch */
-  for (const [id,d] of [['touch-fwd','fwd'],['touch-back','back'],['touch-left','left'],['touch-right','right']]) {
-    const b=$(id); if(!b) continue;
-    b.ontouchstart=e=>{e.preventDefault();move[d]=true;};
-    b.ontouchend=e=>{e.preventDefault();move[d]=false;};
+  // Touch controls
+  for (const [id, direction] of [
+    ['touch-fwd', 'fwd'],
+    ['touch-back', 'back'],
+    ['touch-left', 'left'],
+    ['touch-right', 'right']
+  ]) {
+    const btn = $(id);
+    if (!btn) continue;
+    
+    btn.ontouchstart = e => {
+      e.preventDefault();
+      move[direction] = true;
+    };
+    
+    btn.ontouchend = e => {
+      e.preventDefault();
+      move[direction] = false;
+    };
   }
 
-  addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+  // Resize handler
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
 }
 
-/* ─── view toggle ─── */
-function setView(m) {
-  viewMode = m;
-  pcGroup.visible    = m==='pc' || m==='both';
-  modelGroup.visible = m==='model' || m==='both';
-  document.querySelectorAll('#toggle-bar button').forEach(b=>b.classList.remove('active'));
-  $('btn-'+m).classList.add('active');
+/* ─── View Toggle ─── */
+function setView(mode) {
+  viewMode = mode;
+  pcGroup.visible = mode === 'pc' || mode === 'both';
+  modelGroup.visible = mode === 'model' || mode === 'both';
+  
+  document.querySelectorAll('#toggle-bar button').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  $('btn-' + mode).classList.add('active');
+  
   updateHUD();
 }
 
-/* ─── HUD ─── */
+/* ─── HUD Update ─── */
 function updateHUD() {
-  const p=camera.position;
-  $('hud-pos').textContent  = `${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}`;
-  $('hud-pts').textContent  = totalPoints.toLocaleString();
+  const pos = camera.position;
+  $('hud-pos').textContent = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
+  $('hud-pts').textContent = totalPoints.toLocaleString();
   $('hud-tris').textContent = Math.round(totalTris).toLocaleString();
   $('hud-mode').textContent = viewMode.toUpperCase();
 }
 
-/* ─── render loop ─── */
+/* ─── Render Loop ─── */
 function tick() {
   requestAnimationFrame(tick);
+  
+  const now = performance.now();
   const dt = Math.min(clock.getDelta(), 0.1);
 
+  // Movement
   if (controls.isLocked) {
-    const spd = move.sprint ? SPRINT : WALK;
+    const speed = move.sprint ? SPRINT : WALK;
+    
     dir.z = +move.fwd - +move.back;
     dir.x = +move.right - +move.left;
     dir.normalize();
-    controls.moveRight(dir.x * spd * dt);
-    controls.moveForward(dir.z * spd * dt);
+    
+    controls.moveRight(dir.x * speed * dt);
+    controls.moveForward(dir.z * speed * dt);
+    
+    // Keep camera above floor level
+    if (camera.position.y < 0.5) {
+      camera.position.y = 0.5;
+    }
   }
 
-  /* flashlight follows camera */
+  // Flashlight follows camera
   flashLight.position.copy(camera.position);
-  const look = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
-  flashTarget.position.copy(camera.position).add(look.multiplyScalar(5));
+  const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  flashTarget.position.copy(camera.position).add(lookDir.multiplyScalar(8));
   flashLight.target = flashTarget;
 
-  if (Math.random()<0.05) updateHUD();
+  // FPS counter
+  frameCount++;
+  if (now - lastTime >= 1000) {
+    const fps = Math.round(frameCount * 1000 / (now - lastTime));
+    $('fps-display').textContent = `${fps} FPS`;
+    frameCount = 0;
+    lastTime = now;
+  }
+
+  // Occasional HUD update
+  if (Math.random() < 0.02) {
+    updateHUD();
+  }
+
   renderer.render(scene, camera);
 }
 
+// Start the app
 main().catch(console.error);
 </script>
 </body>
