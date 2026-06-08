@@ -69,6 +69,17 @@ canvas { display: block; }
 }
 #toggle-bar button:hover { border-color: #7ae8b4; color: #ccc; }
 
+#minimap {
+  position: fixed; bottom: 20px; right: 20px; z-index: 10;
+  width: 220px; border-radius: 8px; overflow: hidden;
+  border: 1px solid rgba(122, 232, 180, 0.2);
+  background: rgba(8,8,16,0.7); backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+#minimap canvas {
+  display: block; width: 100%; height: auto;
+}
+
 #crosshair {
   position: fixed; top: 50%; left: 50%; z-index: 10;
   width: 20px; height: 20px; transform: translate(-50%, -50%);
@@ -162,6 +173,8 @@ canvas { display: block; }
 <div class="fps-counter">
   <span id="fps-display">60 FPS</span>
 </div>
+
+<div id="minimap"><canvas id="minimap-canvas"></canvas></div>
 
 <div id="toggle-bar">
   <button id="btn-pc" title="Point Cloud (1)">☁ Points</button>
@@ -533,6 +546,96 @@ function updateHUD() {
   $('hud-mode').textContent = viewMode.toUpperCase();
 }
 
+/* ─── Minimap ─── */
+let minimapReady = false;
+let minimapImg = null;
+let minimapMeta = null;
+const minimapCanvas = document.getElementById('minimap-canvas');
+const minimapCtx = minimapCanvas.getContext('2d');
+
+async function initMinimap() {
+  try {
+    const [metaRes, imgRes] = await Promise.all([
+      fetch('assets/minimap_meta.json'),
+      new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = 'assets/minimap.png';
+      })
+    ]);
+    minimapMeta = await metaRes.json();
+    minimapImg = imgRes;
+    if (minimapImg && minimapMeta) {
+      minimapCanvas.width = minimapMeta.width;
+      minimapCanvas.height = minimapMeta.height;
+      minimapReady = true;
+    }
+  } catch(e) { console.warn('Minimap load failed:', e); }
+}
+initMinimap();
+
+function drawMinimap() {
+  if (!minimapReady) return;
+  const ctx = minimapCtx;
+  const m = minimapMeta;
+  const w = m.width, h = m.height;
+
+  // Clear and draw floor plan
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(minimapImg, 0, 0);
+
+  // Convert camera pos (Three.js Y-up) back to MCAP (Z-up)
+  // Three.js: x=X, y=Z_mcap, z=-Y_mcap
+  const camX_mcap = camera.position.x;
+  const camY_mcap = -camera.position.z;
+
+  // Map to minimap pixel coords
+  // minimap is flipped vertically (flipud), so Y maps differently
+  const px = (camX_mcap - m.origin_x) / m.resolution;
+  const py = h - (camY_mcap - m.origin_y) / m.resolution; // flipped
+
+  // Camera direction (heading in XY plane)
+  const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  const heading = Math.atan2(-lookDir.z, lookDir.x); // map back to MCAP frame
+
+  // Draw player dot
+  ctx.save();
+  ctx.translate(px, py);
+
+  // FOV cone
+  ctx.rotate(-heading + Math.PI/2);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  const fovRad = (80 / 2) * Math.PI / 180;
+  const coneLen = 25;
+  ctx.lineTo(Math.sin(-fovRad) * coneLen, -Math.cos(-fovRad) * coneLen);
+  ctx.lineTo(Math.sin(fovRad) * coneLen, -Math.cos(fovRad) * coneLen);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(122, 232, 180, 0.12)';
+  ctx.fill();
+
+  // Direction arrow
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.lineTo(-4, 4);
+  ctx.lineTo(4, 4);
+  ctx.closePath();
+  ctx.fillStyle = '#7ae8b4';
+  ctx.fill();
+
+  ctx.restore();
+
+  // Player dot
+  ctx.beginPath();
+  ctx.arc(px, py, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#7ae8b4';
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
 /* ─── Render Loop ─── */
 function tick() {
   requestAnimationFrame(tick);
@@ -572,7 +675,8 @@ function tick() {
     lastTime = now;
   }
 
-  // Occasional HUD update
+  // Minimap + HUD update
+  drawMinimap();
   if (Math.random() < 0.02) {
     updateHUD();
   }
