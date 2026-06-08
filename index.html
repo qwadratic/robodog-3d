@@ -4,6 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Robodog 3D — LiDAR Space Reconstruction</title>
+
+<!-- Preconnect to CDN -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+<!-- Preload Three.js modules (start download before importmap resolves) -->
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/loaders/GLTFLoader.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/controls/PointerLockControls.js">
+
+<!-- Preload assets (browser starts fetching immediately, before JS parses) -->
+<link rel="preload" href="assets/model.glb" as="fetch" crossorigin>
+<link rel="preload" href="assets/pointcloud.bin" as="fetch" crossorigin>
+<link rel="preload" href="assets/minimap.png" as="image">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { overflow: hidden; background: #080810; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; color: #ccc; }
@@ -270,16 +284,23 @@ async function main() {
   pcGroup = new THREE.Group(); 
   scene.add(pcGroup);
 
-  // Load assets
+  // Load ALL assets in parallel — browser already preloading from <link> tags
   try {
-    setProgress(5, 'Loading metadata…');
-    metadata = await (await fetch('assets/metadata.json')).json();
+    setProgress(5, 'Downloading assets…');
     
-    setProgress(15, 'Loading trajectory…');
-    await buildTrajectory();
+    // Fire all fetches simultaneously
+    const [metaRes, trajRes, pcRes] = await Promise.all([
+      fetch('assets/metadata.json').then(r => r.json()),
+      fetch('assets/trajectory.json').then(r => r.json()),
+      fetch('assets/pointcloud.bin').then(r => r.arrayBuffer()),
+    ]);
+    metadata = metaRes;
     
-    setProgress(25, 'Loading point cloud…');
-    await buildPointCloud();
+    setProgress(40, 'Building scene…');
+    
+    // Build trajectory + point cloud from prefetched data (fast, no network)
+    buildTrajectoryFromData(trajRes);
+    buildPointCloudFromBuffer(pcRes);
     
     setProgress(60, 'Loading 3D model…');
     await buildModel();
@@ -287,14 +308,14 @@ async function main() {
     // Set camera start position
     if (metadata && metadata.robotStart) {
       const [x, y, z] = metadata.robotStart;
-      camera.position.set(x, z + 1.2, -y); // Convert Z-up to Y-up
+      camera.position.set(x, z + 1.2, -y);
     }
     
     setProgress(100, 'Ready!');
     setTimeout(() => {
       $('loading').classList.add('hidden'); 
       $('blocker').classList.remove('hidden');
-    }, 400);
+    }, 300);
     
   } catch (e) {
     console.error('Loading failed:', e);
@@ -307,16 +328,15 @@ async function main() {
 }
 
 /* ─── Trajectory ─── */
-async function buildTrajectory() {
+function buildTrajectoryFromData(trajData) {
   try {
-    const trajData = await (await fetch('assets/trajectory.json')).json();
     const positions = new Float32Array(trajData.length * 3);
     
     for (let i = 0; i < trajData.length; i++) {
       const [x, y, z] = trajData[i];
-      positions[i*3] = x;        // X stays X
-      positions[i*3+1] = z + 0.05; // Z -> Y (up), lifted slightly
-      positions[i*3+2] = -y;     // Y -> -Z (forward)
+      positions[i*3] = x;
+      positions[i*3+1] = z + 0.05;
+      positions[i*3+2] = -y;
     }
     
     const geometry = new THREE.BufferGeometry();
@@ -333,14 +353,13 @@ async function buildTrajectory() {
     scene.add(trajLine);
     
   } catch (e) {
-    console.warn('Failed to load trajectory:', e);
+    console.warn('Failed to build trajectory:', e);
   }
 }
 
 /* ─── Point Cloud ─── */
-async function buildPointCloud() {
+function buildPointCloudFromBuffer(buffer) {
   try {
-    const buffer = await (await fetch('assets/pointcloud.bin')).arrayBuffer();
     const view = new DataView(buffer);
     
     // Optimized binary format: header (20 bytes) + N × (3×int16 + 3×uint8)
