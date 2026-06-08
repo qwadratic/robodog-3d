@@ -9,12 +9,22 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 
-<!-- Preload Three.js modules (start download before importmap resolves) -->
-<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js">
-<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/loaders/GLTFLoader.js">
-<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/controls/PointerLockControls.js">
+<!-- Import map MUST be before any modulepreload -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/"
+  }
+}
+</script>
 
-<!-- Preload assets (browser starts fetching immediately, before JS parses) -->
+<!-- Preload Three.js modules -->
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/loaders/GLTFLoader.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/controls/PointerLockControls.js">
+
+<!-- Preload assets -->
 <link rel="preload" href="assets/model.glb" as="fetch" crossorigin>
 <link rel="preload" href="assets/pointcloud.bin" as="fetch" crossorigin>
 <link rel="preload" href="assets/minimap.png" as="image">
@@ -214,15 +224,6 @@ canvas { display: block; }
   <button id="touch-back">▼</button>
   <button id="touch-right">►</button>
 </div>
-
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
-  }
-}
-</script>
 
 <script type="module">
 import * as THREE from 'three';
