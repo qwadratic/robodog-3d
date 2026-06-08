@@ -330,22 +330,28 @@ async function buildPointCloud() {
     const buffer = await (await fetch('assets/pointcloud.bin')).arrayBuffer();
     const view = new DataView(buffer);
     
-    // Binary format: x,y,z,r,g,b (6 float32s per point)
-    const numPoints = buffer.byteLength / (6 * 4); // 6 floats × 4 bytes each
+    // Optimized binary format: header (20 bytes) + N × (3×int16 + 3×uint8)
+    const minX = view.getFloat32(0, true);
+    const minY = view.getFloat32(4, true);
+    const minZ = view.getFloat32(8, true);
+    const scale = view.getFloat32(12, true);
+    const numPoints = view.getUint32(16, true);
     totalPoints = numPoints;
     
     const positions = new Float32Array(numPoints * 3);
     const colors = new Float32Array(numPoints * 3);
+    const headerSize = 20;
+    const stride = 9; // 3×i16(6) + 3×u8(3)
     
     for (let i = 0; i < numPoints; i++) {
-      const offset = i * 6 * 4; // 6 floats × 4 bytes
+      const off = headerSize + i * stride;
       
-      const x = view.getFloat32(offset + 0, true);
-      const y = view.getFloat32(offset + 4, true);
-      const z = view.getFloat32(offset + 8, true);
-      const r = view.getFloat32(offset + 12, true);
-      const g = view.getFloat32(offset + 16, true);
-      const b = view.getFloat32(offset + 20, true);
+      const x = minX + view.getInt16(off + 0, true) * scale;
+      const y = minY + view.getInt16(off + 2, true) * scale;
+      const z = minZ + view.getInt16(off + 4, true) * scale;
+      const r = view.getUint8(off + 6) / 255;
+      const g = view.getUint8(off + 7) / 255;
+      const b = view.getUint8(off + 8) / 255;
       
       // Convert coordinates: MCAP Z-up → Three.js Y-up
       positions[i*3] = x;     // X stays X
