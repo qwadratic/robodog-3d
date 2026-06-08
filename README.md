@@ -4,7 +4,7 @@
 
 ## 🚀 [Live Demo](https://qwadratic.github.io/robodog-3d/)
 
-![Robodog 3D Screenshot](https://github.com/qwadratic/robodog-3d/assets/demo-screenshot.png)
+![Robodog 3D Screenshot](screenshot.png)
 
 ## 🎯 What is this?
 
