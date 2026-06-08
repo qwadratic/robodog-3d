@@ -724,8 +724,9 @@ function drawMinimap() {
 
 /* ─── Collision Detection ─── */
 function checkWallCollision(x, y, radius = 0.15) {
-  // Check distance from player position to all collision walls
+  // Check distance from player position to REAL walls only (ghost walls don't collide)
   for (const wall of collisionWalls) {
+    if (wall.type === 'ghost') continue;
     const dist = distanceToLineSegment(x, y, wall.start, wall.end);
     if (dist < radius) {
       return true;  // Collision detected
