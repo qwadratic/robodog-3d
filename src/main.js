@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
 /* ─── State ─── */
@@ -157,8 +158,15 @@ function buildPointCloud(buffer) {
 
 /* ─── Model ─── */
 async function loadModel() {
+  const dracoLoader = new DRACOLoader();
+  dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+  dracoLoader.setDecoderConfig({ type: 'js' }); // works everywhere, no WASM needed
+
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(dracoLoader);
+
   const gltf = await new Promise((resolve, reject) => {
-    new GLTFLoader().load(
+    loader.load(
       'assets/model.glb',
       resolve,
       (p) => {
