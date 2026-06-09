@@ -202,8 +202,14 @@ async function loadModel() {
 function setupEvents() {
   $('start-btn').onclick = () => controls.lock();
   $('blocker').onclick = e => { if (e.target === $('blocker')) controls.lock(); };
-  controls.addEventListener('lock', () => $('blocker').classList.add('hidden'));
-  controls.addEventListener('unlock', () => $('blocker').classList.remove('hidden'));
+  controls.addEventListener('lock', () => {
+    $('blocker').style.display = 'none';
+    $('blocker').classList.add('hidden');
+  });
+  controls.addEventListener('unlock', () => {
+    $('blocker').style.display = 'flex';
+    $('blocker').classList.remove('hidden');
+  });
 
   const keyMap = {
     KeyW: 'fwd', ArrowUp: 'fwd', KeyS: 'back', ArrowDown: 'back',
