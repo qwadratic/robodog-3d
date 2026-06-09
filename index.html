@@ -111,15 +111,7 @@ canvas { display: block; }
 #crosshair::before { width: 2px; height: 20px; left: 9px; top: 0; }
 #crosshair::after { width: 20px; height: 2px; top: 9px; left: 0; }
 
-#coverage-warning {
-  position: fixed; top: 50%; left: 50%; transform: translateX(-50%);
-  z-index: 15; pointer-events: none; margin-top: 40px;
-  background: rgba(255, 140, 0, 0.9); color: #fff;
-  padding: 12px 24px; border-radius: 6px; font-size: 14px; font-weight: 600;
-  box-shadow: 0 4px 20px rgba(255, 140, 0, 0.3);
-  opacity: 0; transition: opacity 0.3s ease;
-}
-#coverage-warning.show { opacity: 1; }
+
 
 #loading {
   position: fixed; inset: 0; z-index: 200;
@@ -184,14 +176,12 @@ canvas { display: block; }
       <kbd>Mouse</kbd> Look &nbsp;
       <kbd>Shift</kbd> Sprint<br>
       <kbd>P</kbd> Point Cloud overlay &nbsp;
-      <kbd>G</kbd> Ghost Walls &nbsp;
       <kbd>ESC</kbd> Menu
     </div>
   </div>
 </div>
 
 <div id="crosshair"></div>
-<div id="coverage-warning">⚠ Low scan coverage — this area was observed from distance</div>
 
 <div id="hud">
   <div>POS <span class="val" id="hud-pos">0.0, 0.0, 0.0</span></div>
@@ -207,7 +197,7 @@ canvas { display: block; }
 
 <div id="toggle-hints">
   <kbd>P</kbd> Points <span id="hint-pts">off</span> &nbsp;
-  <kbd>G</kbd> Ghost walls <span id="hint-ghost">off</span>
+
 </div>
 
 <div id="touch-controls">
@@ -227,13 +217,7 @@ let scene, camera, renderer, controls;
 let modelGroup, pcGroup, flashLight, flashTarget, trajLine;
 const clock = new THREE.Clock();
 let viewMode = 'model';  // Start with model-only (no aggressive point cloud)
-let ghostWallsVisible = false;
 let pointCloudVisible = false;
-
-// Collision and coverage data
-let collisionWalls = [];
-let ghostWalls = [];
-let coverageData = null;
 let totalPoints = 0, totalTris = 0;
 let metadata = null;
 
@@ -301,32 +285,19 @@ async function main() {
   try {
     setProgress(5, 'Downloading assets…');
     
-    // Fire all fetches simultaneously (includes new collision/coverage data)
-    const [metaRes, trajRes, pcRes, collRes, ghostRes, covRes] = await Promise.all([
+    const [metaRes, trajRes] = await Promise.all([
       fetch('assets/metadata.json').then(r => r.json()),
       fetch('assets/trajectory.json').then(r => r.json()),
-      Promise.resolve(null),  // pointcloud loaded lazily via P key
-      fetch('assets/walls_collision.json').then(r => r.json()),
-      fetch('assets/walls_assumed.json').then(r => r.json()),
-      fetch('assets/coverage.json').then(r => r.json()),
     ]);
     metadata = metaRes;
-    collisionWalls = collRes;
-    ghostWalls = ghostRes;
-    coverageData = covRes;
     
     setProgress(40, 'Building scene…');
-    console.log(`Loaded: ${collisionWalls.length} collision walls, ${ghostWalls.length} ghost walls, coverage ${coverageData.width}x${coverageData.height}`);
     
     // Build trajectory + point cloud from prefetched data (fast, no network)
     buildTrajectoryFromData(trajRes);
-    if (pcRes) buildPointCloudFromBuffer(pcRes);  // null on initial load, lazy via P
     
     setProgress(60, 'Loading 3D model…');
     await buildModel();
-    
-    setProgress(80, 'Building ghost walls…');
-    buildGhostWalls();
     
     // Set camera start position
     if (metadata && metadata.robotStart) {
@@ -489,52 +460,7 @@ async function buildModel() {
   }
 }
 
-/* ─── Ghost Walls ─── */
-let ghostWallGroup;
-function buildGhostWalls() {
-  if (ghostWallGroup) {
-    scene.remove(ghostWallGroup);
-  }
-  
-  ghostWallGroup = new THREE.Group();
-  
-  for (const wall of ghostWalls) {
-    const start = wall.start;
-    const end = wall.end;
-    const height = 2.2;  // Standard wall height
-    
-    // Create wall geometry
-    const length = Math.sqrt((end[0] - start[0])**2 + (end[1] - start[1])**2);
-    const geometry = new THREE.PlaneGeometry(length, height);
-    
-    // Semi-transparent blue material
-    const material = new THREE.MeshBasicMaterial({
-      color: 0x4488ff,
-      transparent: true,
-      opacity: 0.15,
-      side: THREE.DoubleSide,
-      wireframe: false
-    });
-    
-    const wallMesh = new THREE.Mesh(geometry, material);
-    
-    // Position and rotate wall
-    const centerX = (start[0] + end[0]) / 2;
-    const centerY = (start[1] + end[1]) / 2;
-    const angle = Math.atan2(end[1] - start[1], end[0] - start[0]);
-    
-    // Convert MCAP coords to Three.js coords
-    wallMesh.position.set(centerX, height/2, -centerY);
-    wallMesh.rotation.x = -Math.PI / 2;  // Rotate from XY to XZ plane
-    wallMesh.rotation.z = angle;
-    
-    ghostWallGroup.add(wallMesh);
-  }
-  
-  ghostWallGroup.visible = ghostWallsVisible;
-  scene.add(ghostWallGroup);
-  console.log(`Built ${ghostWalls.length} ghost walls`);
-}
+
 
 /* ─── Events ─── */
 function setupEvents() {
@@ -567,7 +493,6 @@ function setupEvents() {
     }
     
     if (e.code === 'KeyP') togglePointCloud();
-    if (e.code === 'KeyG') toggleGhostWalls();
   });
   
   addEventListener('keyup', e => {
@@ -627,23 +552,13 @@ async function togglePointCloud() {
   if (el) { el.textContent = pointCloudVisible ? 'on' : 'off'; el.className = pointCloudVisible ? 'on' : ''; }
 }
 
-function toggleGhostWalls() {
-  ghostWallsVisible = !ghostWallsVisible;
-  if (ghostWallGroup) ghostWallGroup.visible = ghostWallsVisible;
-  const el = $('hint-ghost');
-  if (el) { el.textContent = ghostWallsVisible ? 'on' : 'off'; el.className = ghostWallsVisible ? 'on' : ''; }
-}
-
 /* ─── HUD Update ─── */
 function updateHUD() {
   const pos = camera.position;
   $('hud-pos').textContent = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
   $('hud-pts').textContent = totalPoints.toLocaleString();
   $('hud-tris').textContent = Math.round(totalTris).toLocaleString();
-  const flags = [];
-  if (pointCloudVisible) flags.push('PTS');
-  if (ghostWallsVisible) flags.push('GHOST');
-  $('hud-mode').textContent = flags.length ? flags.join('+') : 'MODEL';
+  $('hud-mode').textContent = pointCloudVisible ? 'MODEL+PTS' : 'MODEL';
 }
 
 /* ─── Minimap ─── */
@@ -736,68 +651,7 @@ function drawMinimap() {
   ctx.stroke();
 }
 
-/* ─── Collision Detection ─── */
-function checkWallCollision(x, y, radius = 0.15) {
-  // Check distance from player position to REAL walls only (ghost walls don't collide)
-  for (const wall of collisionWalls) {
-    if (wall.type === 'ghost') continue;
-    const dist = distanceToLineSegment(x, y, wall.start, wall.end);
-    if (dist < radius) {
-      return true;  // Collision detected
-    }
-  }
-  return false;
-}
 
-function distanceToLineSegment(px, py, start, end) {
-  const [x1, y1] = start;
-  const [x2, y2] = end;
-  
-  // Vector from start to end
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  
-  // If line segment has zero length
-  if (dx === 0 && dy === 0) {
-    return Math.sqrt((px - x1)**2 + (py - y1)**2);
-  }
-  
-  // Parameter t representing position along line segment
-  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx*dx + dy*dy)));
-  
-  // Closest point on line segment
-  const closestX = x1 + t * dx;
-  const closestY = y1 + t * dy;
-  
-  // Distance from point to closest point
-  return Math.sqrt((px - closestX)**2 + (py - closestY)**2);
-}
-
-/* ─── Coverage Warning ─── */
-function checkCoverageWarning() {
-  if (!coverageData) return;
-  
-  // Get current position in MCAP coords
-  const mcap_x = camera.position.x;
-  const mcap_y = -camera.position.z;
-  
-  // Convert to coverage grid coordinates
-  const gx = Math.floor((mcap_x - coverageData.origin_x) / coverageData.resolution);
-  const gy = Math.floor((mcap_y - coverageData.origin_y) / coverageData.resolution);
-  
-  // Check if within grid bounds
-  if (gx >= 0 && gx < coverageData.width && gy >= 0 && gy < coverageData.height) {
-    const index = gy * coverageData.width + gx;
-    const coverage = coverageData.data[index];
-    
-    const warningEl = $('coverage-warning');
-    if (coverage < 0.15) {  // Low coverage threshold
-      warningEl.classList.add('show');
-    } else {
-      warningEl.classList.remove('show');
-    }
-  }
-}
 
 /* ─── Render Loop ─── */
 function tick() {
@@ -814,32 +668,11 @@ function tick() {
     dir.x = +move.right - +move.left;
     dir.normalize();
     
-    // Calculate proposed movement
     const deltaRight = dir.x * speed * dt;
     const deltaForward = dir.z * speed * dt;
     
-    // Check collisions and apply movement
-    const currentPos = camera.position;
-    
-    // Convert Three.js coords to MCAP for collision check
-    const mcap_x = currentPos.x;
-    const mcap_y = -currentPos.z;
-    
-    // Test right movement
-    if (deltaRight !== 0) {
-      const new_mcap_x = mcap_x + deltaRight;
-      if (!checkWallCollision(new_mcap_x, mcap_y)) {
-        controls.moveRight(deltaRight);
-      }
-    }
-    
-    // Test forward movement
-    if (deltaForward !== 0) {
-      const new_mcap_y = mcap_y - deltaForward;  // Forward in Three.js is -Z
-      if (!checkWallCollision(mcap_x, new_mcap_y)) {
-        controls.moveForward(deltaForward);
-      }
-    }
+    if (deltaRight !== 0) controls.moveRight(deltaRight);
+    if (deltaForward !== 0) controls.moveForward(deltaForward);
     
     // Keep camera above floor level
     if (camera.position.y < 1.5) {
@@ -852,9 +685,6 @@ function tick() {
   const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
   flashTarget.position.copy(camera.position).add(lookDir.multiplyScalar(8));
   flashLight.target = flashTarget;
-
-  // Check coverage warning
-  checkCoverageWarning();
 
   // FPS counter
   frameCount++;

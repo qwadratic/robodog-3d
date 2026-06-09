@@ -15,8 +15,18 @@ from scipy.spatial import cKDTree
 import open3d as o3d
 import json, time
 
-OUT = Path(__file__).parent / "output"
-WEB = Path(__file__).parent.parent / "robodog-3d" / "assets"
+# Resolve paths: run from robodog-telemetry or from scripts/ dir
+_here = Path(__file__).parent
+if (_here / 'output').exists():
+    OUT = _here / 'output'
+    WEB = _here.parent / 'robodog-3d' / 'assets'
+elif (_here.parent / 'output').exists():
+    OUT = _here.parent / 'output'
+    WEB = _here.parent.parent / 'robodog-3d' / 'assets'
+else:
+    OUT = Path('output')
+    WEB = Path('../robodog-3d/assets')
+WEB.mkdir(parents=True, exist_ok=True)
 
 t0 = time.time()
 print("Loading 2.16M point cloud...")
@@ -85,19 +95,35 @@ traj_grid[tiy, tix] = True
 traj_near = ndimage.binary_dilation(traj_grid, iterations=25)
 floor_valid = floor_grid & traj_near
 
-# Wall density grid (how many wall points per cell) — this IS our occupancy probability
+# Wall density grid
 wall_density = np.zeros((GH, GW), dtype=np.int32)
 wix, wiy = to_grid(cloud[is_wall][:,:2])
 np.add.at(wall_density, (wiy, wix), 1)
-wall_cells = wall_density >= 2  # at least 2 points
+wall_candidates = wall_density >= 2  # at least 2 vertical-normal points
 
-# Occupancy probability: normalize density to [0, 1]
-# More points = higher confidence this cell is a wall
-# Use log scale: 2 pts = low confidence, 50+ pts = near certain
+# HEIGHT SPAN filtering: real walls go floor-to-ceiling, furniture does not
+# For each cell, measure the z-range of its vertical-normal points
+vert_pts = cloud[is_wall]
+vert_ix, vert_iy = to_grid(vert_pts[:,:2])
+z_min_grid = np.full((GH, GW), np.inf)
+z_max_grid = np.full((GH, GW), -np.inf)
+np.minimum.at(z_min_grid, (vert_iy, vert_ix), vert_pts[:,2])
+np.maximum.at(z_max_grid, (vert_iy, vert_ix), vert_pts[:,2])
+height_span = np.where(wall_candidates, z_max_grid - z_min_grid, 0)
+
+# Real wall: spans >50% of room height (dog at 40cm can't see bottom, so >50% is generous)
+# LiDAR is at 40cm → sees from ~0.4m to ~2.0m = 1.6m of a 2.16m room = 74% max possible
+wall_cells = wall_candidates & (height_span > wall_h * 0.45)
+
+# Occupancy probability from density
 wall_prob = np.zeros((GH, GW), dtype=np.float32)
 wall_prob[wall_cells] = np.clip(np.log1p(wall_density[wall_cells]) / np.log1p(50), 0.15, 1.0)
-print(f"  Wall probability: min={wall_prob[wall_cells].min():.2f}, "
-      f"median={np.median(wall_prob[wall_cells]):.2f}, max={wall_prob[wall_cells].max():.2f}")
+
+print(f"  Height filter: {wall_candidates.sum()} candidates → {wall_cells.sum()} real walls")
+print(f"  Removed {wall_candidates.sum() - wall_cells.sum()} furniture-as-wall cells")
+if wall_cells.any():
+    print(f"  Wall probability: min={wall_prob[wall_cells].min():.2f}, "
+          f"median={np.median(wall_prob[wall_cells]):.2f}, max={wall_prob[wall_cells].max():.2f}")
 
 # Furniture grid
 furn_density = np.zeros((GH, GW), dtype=np.int32)
@@ -432,41 +458,6 @@ with open(WEB / "minimap_meta.json", 'w') as f:
                "floor_z": float(floor_z), "ceiling_z": float(ceil_z)}, f)
 print(f"  ✅ minimap.png ({mm_crop.shape[1]}x{mm_crop.shape[0]})")
 
-# Wall collision + ghost walls
-print("\nExporting collision data...")
-# Wall collision: use wall_cells grid edges as segments
-collision_walls = []
-for gy in range(GH):
-    for gx in range(GW):
-        if not wall_cells[gy, gx]:
-            continue
-        x0 = float(x_min + gx * GRID)
-        y0 = float(y_min + gy * GRID)
-        g = float(GRID)
-        if gx == 0 or not wall_cells[gy, gx-1]:
-            collision_walls.append({'start':[round(x0,2),round(y0,2)],'end':[round(x0,2),round(y0+g,2)],'type':'real'})
-        if gx==GW-1 or not wall_cells[gy,gx+1]:
-            collision_walls.append({'start':[round(x0+g,2),round(y0,2)],'end':[round(x0+g,2),round(y0+g,2)],'type':'real'})
-        if gy==0 or not wall_cells[gy-1,gx]:
-            collision_walls.append({'start':[round(x0,2),round(y0,2)],'end':[round(x0+g,2),round(y0,2)],'type':'real'})
-        if gy==GH-1 or not wall_cells[gy+1,gx]:
-            collision_walls.append({'start':[round(x0,2),round(y0+g,2)],'end':[round(x0+g,2),round(y0+g,2)],'type':'real'})
-
-# Deduplicate (many shared edges)
-seen = set()
-unique_walls = []
-for w in collision_walls:
-    key = (tuple(w['start']), tuple(w['end']))
-    rkey = (tuple(w['end']), tuple(w['start']))
-    if key not in seen and rkey not in seen:
-        seen.add(key)
-        unique_walls.append(w)
-
-with open(WEB / "walls_collision.json", 'w') as f:
-    json.dump(unique_walls, f, separators=(',',':'))
-print(f"  ✅ {len(unique_walls)} collision segments")
-
-# Ghost walls (keep existing)
 print(f"\n✅ Done in {time.time()-t0:.0f}s")
 print(f"  Model: {len(combined_v):,} verts, {len(combined_t):,} tris")
 print(f"  Walls: {wall_cells.sum()} cells | Furniture: {n_furniture} objects")
