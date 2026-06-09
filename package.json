@@ -1,0 +1,29 @@
+{
+  "name": "robodog-3d",
+  "version": "1.0.0",
+  "description": "Interactive Three.js viewer for a LiDAR-reconstructed indoor space from a **Unitree Go2** robot dog.",
+
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qwadratic/robodog-3d.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+
+  "bugs": {
+    "url": "https://github.com/qwadratic/robodog-3d/issues"
+  },
+  "homepage": "https://github.com/qwadratic/robodog-3d#readme",
+  "devDependencies": {
+    "vite": "^8.0.16"
+  },
+  "dependencies": {
+    "three": "^0.184.0"
+  }
+}

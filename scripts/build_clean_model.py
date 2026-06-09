@@ -15,18 +15,26 @@ from scipy.spatial import cKDTree
 import open3d as o3d
 import json, time
 
-# Resolve paths: run from robodog-telemetry or from scripts/ dir
-_here = Path(__file__).parent
-if (_here / 'output').exists():
-    OUT = _here / 'output'
-    WEB = _here.parent / 'robodog-3d' / 'assets'
-elif (_here.parent / 'output').exists():
-    OUT = _here.parent / 'output'
-    WEB = _here.parent.parent / 'robodog-3d' / 'assets'
+# Resolve paths: scripts live in robodog-3d/scripts/, data in robodog-telemetry/output/
+_here = Path(__file__).resolve().parent  # robodog-3d/scripts/
+_project = _here.parent                  # robodog-3d/
+_telemetry = _project.parent / 'robodog-telemetry'
+
+# Output dir: robodog-telemetry/output/ (where the NPZ lives)
+if (_telemetry / 'output').exists():
+    OUT = _telemetry / 'output'
+elif Path('output').exists():
+    OUT = Path('output')  # running from robodog-telemetry/
 else:
-    OUT = Path('output')
-    WEB = Path('../robodog-3d/assets')
+    raise FileNotFoundError('Cannot find output/ dir. Run from robodog-telemetry/ or ensure ../robodog-telemetry/output/ exists.')
+
+# Web assets: robodog-3d/public/assets/
+WEB = _project / 'public' / 'assets'
+if not WEB.exists():
+    WEB = _project / 'assets'  # fallback for old layout
 WEB.mkdir(parents=True, exist_ok=True)
+print(f"  Data: {OUT}")
+print(f"  Web:  {WEB}")
 
 t0 = time.time()
 print("Loading 2.16M point cloud...")
