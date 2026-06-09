@@ -4,7 +4,7 @@ Interactive Three.js viewer for a LiDAR-reconstructed indoor space from a **Unit
 
 ## 🚀 [Live Demo](https://qwadratic.github.io/robodog-3d/)
 
-![Screenshot](screenshot.png)
+![Isometric view of the reconstructed space](screenshot.png)
 
 ## What is this?
 
@@ -14,22 +14,20 @@ A robot dog walked through an indoor space for 4 minutes with a solid-state LiDA
 
 1. **Raw data**: 2GB MCAP file (ROS2 rosbag) → 41.5M deskewed LiDAR points + SLAM odometry
 2. **Downsample**: 1cm voxel grid → 2.16M unique points
-3. **Classify**: surface normals + height → floor / wall / ceiling / furniture
-4. **Reconstruct**: voxelized walls (every occupied cell), flat floor/ceiling, schematic furniture
-5. **Ghost walls**: point cloud boundary heuristic — where density drops abruptly = wall
-6. **Export**: GLB model (1MB) + minimap + collision data → Three.js viewer
+3. **Classify**: surface normals + height span → floor / wall / ceiling / furniture
+4. **Reconstruct**: height-filtered walls (only floor-to-ceiling surfaces), flat floor/ceiling, schematic furniture
+5. **Export**: GLB model + minimap + robot trajectory → Three.js viewer
 
 ### Features
 
-- **6,028 wall cells** — voxelized with occupancy probability (bright = confident, dark = uncertain)
-- **11 ghost walls** (inferred from point cloud density boundaries)
+- **979 wall cells** — height-filtered: only surfaces spanning floor-to-ceiling are walls
+- **Greedy meshing** — adjacent wall faces merged into flat planes (not Minecraft blocks)
+- **Occupancy probability** — wall brightness reflects LiDAR confidence (bright = many hits)
 - **289 furniture objects** — schematic: floor shadows + wireframe edges + top cap
-- **Flat floor** with ambient occlusion near walls
-- **Flat ceiling** only in enclosed rooms (34.2 m²)
-- **Human-height camera** (1.6m eye level)
+- **Robodog replay** — animated Go2 model replays the original 4-minute walk
 - **Minimap** with real-time position + FOV cone
-- **Collision detection** against real walls
-- **Low coverage warning** in barely-scanned areas
+- **Screenshot capture** (F2) — saves PNG via download dialog
+- **Point cloud overlay** (P) — 2.16M points, lazy-loaded on demand
 
 ## 🎮 Controls
 
@@ -39,14 +37,15 @@ A robot dog walked through an indoor space for 4 minutes with a solid-state LiDA
 | **WASD** | Move |
 | **Mouse** | Look around |
 | **Shift** | Sprint |
+| **R** | Toggle robodog replay (original trajectory) |
 | **P** | Toggle point cloud overlay (loaded on demand) |
-| **G** | Toggle ghost walls (inferred boundaries) |
+| **F2** | Save screenshot as PNG |
 | **ESC** | Release mouse |
 
 ## Tech
 
 - Single `index.html` — no build step
-- Three.js from CDN (importmap + modulepreload)
+- Three.js 0.172.0 from CDN (importmap + modulepreload)
 - PointerLockControls for first-person navigation
 - Assets loaded in parallel with `<link rel="preload">`
 - Point cloud lazy-loaded only on P key press
@@ -65,11 +64,17 @@ The `scripts/` folder contains the Python pipeline that generates the 3D model f
 
 | Script | Purpose |
 |--------|--------|
-| `extract_floorplan.py` | Read MCAP, accumulate 41.5M points, downsample (default 1cm), save NPZ |
-| `build_clean_model.py` | Classify points, build probabilistic voxelized walls + floor + ceiling + furniture |
-| `export_ghost_walls.py` | Detect ghost walls from point cloud boundaries + export collision data |
+| `extract_floorplan.py [resolution]` | Read MCAP, accumulate 41.5M points, downsample (default 1cm), save NPZ |
+| `build_clean_model.py` | Height-filter walls, greedy mesh, probabilistic coloring, schematic furniture |
 
 Requires: `pip install open3d mcap mcap-ros2-support scipy numpy matplotlib pillow`
+
+```bash
+# Full pipeline
+cd robodog-telemetry
+python scripts/extract_floorplan.py 0.01   # 1cm voxel downsample
+python scripts/build_clean_model.py         # → model.glb + minimap
+```
 
 ## Local development
 
@@ -82,4 +87,4 @@ python3 -m http.server 8000
 
 ---
 
-*Built by [@qwadratic](https://github.com/qwadratic)*
+*Built by [@qwadratic](https://github.com/qwadratic) • [GitHub](https://github.com/qwadratic/robodog-3d)*
