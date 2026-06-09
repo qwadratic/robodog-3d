@@ -1,79 +1,98 @@
 # 🐕 Robodog 3D — LiDAR Space Reconstruction
 
-Interactive Three.js viewer for a LiDAR-reconstructed indoor space from a **Unitree Go2** robot dog.
+Interactive 3D walkthrough of an indoor space, reconstructed from a **Unitree Go2** robot dog's LiDAR scan.
 
 ## 🚀 [Live Demo](https://qwadratic.github.io/robodog-3d/)
 
-![Isometric view of the reconstructed space](screenshot.png)
+![LiDAR floor plan reconstruction](screenshot.png)
 
 ## What is this?
 
-A robot dog walked through an indoor space for 4 minutes with a solid-state LiDAR (15 Hz, 41.5M points total). From that single scan, we reconstructed a 3D architectural model and deployed it as an interactive first-person walkthrough.
+A quadruped robot walked through an office/apartment for **4 minutes** carrying a solid-state LiDAR (Unitree L1, 15 Hz). The raw scan — 41.5 million 3D points — was processed into a navigable architectural model: walls, floor, ceiling, and schematic furniture outlines.
 
-### Pipeline
+No cameras were used. Everything you see comes from a single LiDAR sensor at 40cm height.
 
-1. **Raw data**: 2GB MCAP file (ROS2 rosbag) → 41.5M deskewed LiDAR points + SLAM odometry
-2. **Downsample**: 1cm voxel grid → 2.16M unique points
-3. **Classify**: surface normals + height span → floor / wall / ceiling / furniture
-4. **Reconstruct**: height-filtered walls (only floor-to-ceiling surfaces), flat floor/ceiling, schematic furniture
-5. **Export**: GLB model + minimap + robot trajectory → Three.js viewer
+### What the robot recorded
 
-### Features
+| Topic | Rate | Description |
+|-------|------|-------------|
+| `/utlidar/cloud_deskewed` | 15 Hz | 3D point clouds (motion-compensated) |
+| `/sportmodestate` | 50 Hz | SLAM odometry (position + orientation) |
+| `/imu` | 500 Hz | IMU accelerometer + gyroscope |
+| `/jointstate` | 500 Hz | 12 joint positions (4 legs × 3 joints) |
 
-- **979 wall cells** — height-filtered: only surfaces spanning floor-to-ceiling are walls
-- **Greedy meshing** — adjacent wall faces merged into flat planes (not Minecraft blocks)
-- **Occupancy probability** — wall brightness reflects LiDAR confidence (bright = many hits)
-- **289 furniture objects** — schematic: floor shadows + wireframe edges + top cap
-- **Robodog replay** — animated Go2 model replays the original 4-minute walk
-- **Minimap** with real-time position + FOV cone
-- **Screenshot capture** (F2) — saves PNG via download dialog
-- **Point cloud overlay** (P) — 2.16M points, lazy-loaded on demand
+The MCAP file (2 GB) is available on [Google Drive](https://drive.google.com/drive/folders/1X2RnhCLFHmyrKIzM3l7SOrvbRpVZP4eA).
+
+### Reconstruction pipeline
+
+```
+41.5M raw points
+  → 1cm voxel downsample → 2.16M points
+  → normal estimation → classify floor / wall / ceiling / furniture
+  → height-span filter: only floor-to-ceiling surfaces are walls (979 cells)
+  → greedy meshing: merge adjacent coplanar faces into flat quads
+  → occupancy probability: point density → wall brightness
+  → schematic furniture: floor shadows + wireframe edges + top cap
+  → GLB export → Three.js viewer
+```
+
+### Key numbers
+
+| Metric | Value |
+|--------|-------|
+| Raw points | 41.5M |
+| After 1cm voxel downsample | 2.16M |
+| Real walls (height-filtered) | 979 cells |
+| Furniture objects | 289 |
+| Ceiling area (enclosed rooms) | 62.5 m² |
+| Robot path length | 39.8 m |
+| Scan duration | 4 min |
+| Model file | 3.3 MB GLB |
+| Total web payload | ~4 MB |
+
+### Why walls are height-filtered
+
+The LiDAR sees vertical surfaces on furniture (desks, chairs, shelves) the same way it sees walls. Without filtering, 6,028 cells were classified as "walls" — most of them furniture, choking every corridor. 
+
+The fix: real walls span floor-to-ceiling (~2.1m). Furniture doesn't. Filtering by height span (>45% of room height) drops to **979 real wall cells** — matching the actual room layout.
 
 ## 🎮 Controls
 
 | Key | Action |
 |-----|--------|
-| **Click** | Lock mouse (enter first-person) |
+| **Click** | Enter first-person mode |
 | **WASD** | Move |
 | **Mouse** | Look around |
 | **Shift** | Sprint |
-| **R** | Toggle robodog replay (original trajectory) |
-| **P** | Toggle point cloud overlay (loaded on demand) |
-| **F2** | Save screenshot as PNG |
+| **R** | Robodog replay (original 4-min trajectory) |
+| **P** | Point cloud overlay (lazy-loaded) |
+| **F2** | Save screenshot |
 | **ESC** | Release mouse |
 
-## Tech
+## Tech stack
 
-- Single `index.html` — no build step
-- Three.js 0.172.0 from CDN (importmap + modulepreload)
+- **Vite** + **Three.js** (npm, tree-shaken, ~155KB gzipped)
 - PointerLockControls for first-person navigation
-- Assets loaded in parallel with `<link rel="preload">`
-- Point cloud lazy-loaded only on P key press
-- Total payload: ~4MB
-
-## Data source
-
-- **Robot**: Unitree Go2 quadruped
-- **LiDAR**: Unitree L1 solid-state, 15 Hz
-- **Recording**: 4 minutes, 39.8m path, ~38m² covered
-- **Format**: MCAP (ROS2 rosbag2, libmcap 1.3.1)
+- GLB model with vertex colors (occupancy probability → brightness)
+- Point cloud: quantized Int16 + Uint8 binary format (352 KB)
+- Robot replay: 206 keyframes with position + heading, interpolated
+- GitHub Pages via CI build (`npm run build` → `dist/`)
 
 ## Reconstruction scripts
 
-The `scripts/` folder contains the Python pipeline that generates the 3D model from raw LiDAR data:
+The `scripts/` folder contains the full pipeline. Download the MCAP from [Google Drive](https://drive.google.com/drive/folders/1X2RnhCLFHmyrKIzM3l7SOrvbRpVZP4eA) and place it in `data/`.
 
 | Script | Purpose |
 |--------|--------|
-| `extract_floorplan.py [resolution]` | Read MCAP, accumulate 41.5M points, downsample (default 1cm), save NPZ |
-| `build_clean_model.py` | Height-filter walls, greedy mesh, probabilistic coloring, schematic furniture |
-
-Requires: `pip install open3d mcap mcap-ros2-support scipy numpy matplotlib pillow`
+| `extract_floorplan.py [resolution]` | Read MCAP → accumulate + downsample points → save NPZ |
+| `build_clean_model.py` | Classify → height-filter walls → greedy mesh → GLB + minimap |
 
 ```bash
-# Full pipeline
-cd robodog-telemetry
-python scripts/extract_floorplan.py 0.01   # 1cm voxel downsample
-python scripts/build_clean_model.py         # → model.glb + minimap
+pip install open3d mcap mcap-ros2-support scipy numpy matplotlib pillow
+
+# Place MCAP in data/
+python scripts/extract_floorplan.py 0.01   # 1cm voxel
+python scripts/build_clean_model.py         # → public/assets/model.glb
 ```
 
 ## Local development
@@ -81,10 +100,17 @@ python scripts/build_clean_model.py         # → model.glb + minimap
 ```bash
 git clone https://github.com/qwadratic/robodog-3d.git
 cd robodog-3d
-python3 -m http.server 8000
-# Open http://localhost:8000
+npm install
+npm run dev    # http://localhost:5173/robodog-3d/
 ```
+
+## Data source
+
+- **Robot**: [Unitree Go2](https://www.unitree.com/go2) quadruped
+- **LiDAR**: Unitree L1 solid-state, 15 Hz, ~11K points/scan
+- **Format**: [MCAP](https://mcap.dev/) (ROS2 rosbag2)
+- **MCAP file**: [Google Drive](https://drive.google.com/drive/folders/1X2RnhCLFHmyrKIzM3l7SOrvbRpVZP4eA) (2 GB)
 
 ---
 
-*Built by [@qwadratic](https://github.com/qwadratic) • [GitHub](https://github.com/qwadratic/robodog-3d)*
+*Built by [@qwadratic](https://github.com/qwadratic)*

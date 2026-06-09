@@ -15,26 +15,13 @@ from scipy.spatial import cKDTree
 import open3d as o3d
 import json, time
 
-# Resolve paths: scripts live in robodog-3d/scripts/, data in robodog-telemetry/output/
-_here = Path(__file__).resolve().parent  # robodog-3d/scripts/
-_project = _here.parent                  # robodog-3d/
-_telemetry = _project.parent / 'robodog-telemetry'
-
-# Output dir: robodog-telemetry/output/ (where the NPZ lives)
-if (_telemetry / 'output').exists():
-    OUT = _telemetry / 'output'
-elif Path('output').exists():
-    OUT = Path('output')  # running from robodog-telemetry/
-else:
-    raise FileNotFoundError('Cannot find output/ dir. Run from robodog-telemetry/ or ensure ../robodog-telemetry/output/ exists.')
-
-# Web assets: robodog-3d/public/assets/
+# Paths: data/ for intermediate files, public/assets/ for web output
+_project = Path(__file__).resolve().parent.parent
+OUT = _project / 'data' / 'output'
 WEB = _project / 'public' / 'assets'
-if not WEB.exists():
-    WEB = _project / 'assets'  # fallback for old layout
 WEB.mkdir(parents=True, exist_ok=True)
-print(f"  Data: {OUT}")
-print(f"  Web:  {WEB}")
+if not OUT.exists():
+    raise FileNotFoundError(f'Run extract_floorplan.py first. Expected: {OUT}')
 
 t0 = time.time()
 print("Loading 2.16M point cloud...")

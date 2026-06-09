@@ -17,16 +17,11 @@ from pathlib import Path
 from mcap.stream_reader import StreamReader
 from mcap_ros2.decoder import DecoderFactory
 
-# Resolve paths: MCAP and output live in robodog-telemetry/
-_here = Path(__file__).resolve().parent
-_telemetry = _here.parent.parent / 'robodog-telemetry'
-if (_telemetry / 'output').exists() or _telemetry.exists():
-    MCAP_FILE = _telemetry / "debug_big_walkaround_recovered.mcap"
-    OUT_DIR = _telemetry / "output"
-else:
-    MCAP_FILE = Path("debug_big_walkaround_recovered.mcap")
-    OUT_DIR = Path("output")
-OUT_DIR.mkdir(exist_ok=True)
+# Paths: data/ in project root
+_project = Path(__file__).resolve().parent.parent
+MCAP_FILE = _project / "data" / "debug_big_walkaround_recovered.mcap"
+OUT_DIR = _project / "data" / "output"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Parameters ---
 import sys
