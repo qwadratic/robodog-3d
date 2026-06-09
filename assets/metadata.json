@@ -1,10 +1,14 @@
 {
-  "triangleCount": 32966,
-  "wallCells": 5611,
+  "triangleCount": 31944,
+  "wallCells": 979,
   "furnitureCount": 289,
   "sourceResolution": "1cm voxel (2.16M points from 41.5M raw)",
   "floorZ": -0.02,
   "ceilingZ": 2.15,
-  "robotStart": [1.495, -4.056, 0.317],
+  "robotStart": [
+    1.495,
+    -4.056,
+    0.317
+  ],
   "coordinateSystem": "Z-up (convert to Y-up for Three.js)"
 }

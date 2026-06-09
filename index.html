@@ -175,7 +175,9 @@ canvas { display: block; }
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move &nbsp;
       <kbd>Mouse</kbd> Look &nbsp;
       <kbd>Shift</kbd> Sprint<br>
-      <kbd>P</kbd> Point Cloud overlay &nbsp;
+      <kbd>P</kbd> Point Cloud &nbsp;
+      <kbd>R</kbd> Robodog replay &nbsp;
+      <kbd>F2</kbd> Screenshot &nbsp;
       <kbd>ESC</kbd> Menu
     </div>
   </div>
@@ -197,6 +199,8 @@ canvas { display: block; }
 
 <div id="toggle-hints">
   <kbd>P</kbd> Points <span id="hint-pts">off</span> &nbsp;
+  <kbd>R</kbd> Robodog <span id="hint-robot">off</span> &nbsp;
+  <kbd>F2</kbd> Screenshot
 
 </div>
 
@@ -221,6 +225,13 @@ let pointCloudVisible = false;
 let totalPoints = 0, totalTris = 0;
 let metadata = null;
 
+// Robot dog replay
+let robotGroup = null;
+let robotPath = null;
+let robotPlaying = false;
+let robotTime = 0;
+let robotSpeed = 1.0;  // 1x realtime
+
 const move = { fwd:false, back:false, left:false, right:false, sprint:false };
 const WALK = 3.5, SPRINT = 10.0;
 const vel = new THREE.Vector3();
@@ -240,13 +251,14 @@ async function main() {
 
   // Camera
   camera = new THREE.PerspectiveCamera(85, innerWidth/innerHeight, 0.05, 120);
-  camera.position.set(1.5, 1.6, 4.0); // Default: human eye height (~1.6m)
+  camera.position.set(1.5, 1.65, 4.0); // Human eye height
 
   // Renderer
   renderer = new THREE.WebGLRenderer({ 
     antialias: true, 
     powerPreference: 'high-performance',
-    alpha: false
+    alpha: false,
+    preserveDrawingBuffer: true  // needed for F2 screenshot
   });
   renderer.setSize(innerWidth, innerHeight);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -285,16 +297,18 @@ async function main() {
   try {
     setProgress(5, 'Downloading assets…');
     
-    const [metaRes, trajRes] = await Promise.all([
+    const [metaRes, trajRes, robotRes] = await Promise.all([
       fetch('assets/metadata.json').then(r => r.json()),
       fetch('assets/trajectory.json').then(r => r.json()),
+      fetch('assets/robot_path.json').then(r => r.json()),
     ]);
     metadata = metaRes;
+    robotPath = robotRes;
     
     setProgress(40, 'Building scene…');
     
-    // Build trajectory + point cloud from prefetched data (fast, no network)
     buildTrajectoryFromData(trajRes);
+    buildRobotDog();
     
     setProgress(60, 'Loading 3D model…');
     await buildModel();
@@ -302,7 +316,7 @@ async function main() {
     // Set camera start position
     if (metadata && metadata.robotStart) {
       const [x, y, z] = metadata.robotStart;
-      camera.position.set(x, 1.6, -y); // Human eye height, ignore robot z
+      camera.position.set(x, 1.65, -y); // Human eye height
     }
     
     setProgress(100, 'Ready!');
@@ -493,6 +507,8 @@ function setupEvents() {
     }
     
     if (e.code === 'KeyP') togglePointCloud();
+    if (e.code === 'KeyR') toggleRobot();
+    if (e.code === 'F2') { e.preventDefault(); takeScreenshot(); }
   });
   
   addEventListener('keyup', e => {
@@ -653,6 +669,137 @@ function drawMinimap() {
 
 
 
+/* ─── Robot Dog (Unitree Go2) ─── */
+function buildRobotDog() {
+  robotGroup = new THREE.Group();
+  
+  // Simple low-poly Go2 robot dog (~45cm long, ~30cm tall, ~20cm wide)
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6, metalness: 0.3 });
+  const accentMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.4 });
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 0.8 });
+  const lidarMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.3, metalness: 0.6 });
+  
+  // Body (main chassis)
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.12, 0.22), bodyMat);
+  body.position.y = 0.28;
+  robotGroup.add(body);
+  
+  // Head
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.16), accentMat);
+  head.position.set(0.26, 0.30, 0);
+  robotGroup.add(head);
+  
+  // Eyes (2 green LEDs)
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 6), eyeMat);
+    eye.position.set(0.32, 0.32, side * 0.05);
+    robotGroup.add(eye);
+  }
+  
+  // LiDAR dome on top
+  const lidar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.03, 8), lidarMat);
+  lidar.position.set(0.05, 0.36, 0);
+  robotGroup.add(lidar);
+  
+  // Legs (4 legs, each with upper + lower segment)
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
+  const legPositions = [
+    { x: 0.15, z: 0.10 },  // front-right
+    { x: 0.15, z: -0.10 }, // front-left
+    { x: -0.15, z: 0.10 }, // back-right
+    { x: -0.15, z: -0.10 },// back-left
+  ];
+  
+  for (const lp of legPositions) {
+    // Upper leg
+    const upper = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.14, 0.03), legMat);
+    upper.position.set(lp.x, 0.20, lp.z);
+    robotGroup.add(upper);
+    // Lower leg
+    const lower = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.14, 0.025), legMat);
+    lower.position.set(lp.x, 0.07, lp.z);
+    robotGroup.add(lower);
+    // Foot pad
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.01, 6), accentMat);
+    foot.position.set(lp.x, 0.005, lp.z);
+    robotGroup.add(foot);
+  }
+  
+  robotGroup.visible = false;
+  scene.add(robotGroup);
+}
+
+function toggleRobot() {
+  robotPlaying = !robotPlaying;
+  if (robotPlaying) {
+    robotTime = 0;
+    if (robotGroup) robotGroup.visible = true;
+  } else {
+    if (robotGroup) robotGroup.visible = false;
+  }
+  const el = $('hint-robot');
+  if (el) { el.textContent = robotPlaying ? 'playing' : 'off'; el.className = robotPlaying ? 'on' : ''; }
+}
+
+function updateRobot(dt) {
+  if (!robotPlaying || !robotPath || !robotGroup) return;
+  
+  robotTime += dt * robotSpeed;
+  const totalDuration = robotPath[robotPath.length - 1].t;
+  
+  // Loop
+  if (robotTime > totalDuration) robotTime = 0;
+  
+  // Find surrounding keyframes
+  let i = 0;
+  for (; i < robotPath.length - 1; i++) {
+    if (robotPath[i + 1].t > robotTime) break;
+  }
+  const j = Math.min(i + 1, robotPath.length - 1);
+  const a = robotPath[i], b = robotPath[j];
+  
+  // Interpolate
+  const segDur = b.t - a.t;
+  const frac = segDur > 0 ? (robotTime - a.t) / segDur : 0;
+  
+  const x = a.x + (b.x - a.x) * frac;
+  const y = a.y + (b.y - a.y) * frac;
+  const z = a.z + (b.z - a.z) * frac;
+  
+  // Interpolate heading (handle wrap-around)
+  let dh = b.h - a.h;
+  if (dh > Math.PI) dh -= 2 * Math.PI;
+  if (dh < -Math.PI) dh += 2 * Math.PI;
+  const h = a.h + dh * frac;
+  
+  // Convert MCAP (Z-up) to Three.js (Y-up): x=X, y=Z, z=-Y
+  robotGroup.position.set(x, z, -y);
+  robotGroup.rotation.y = -h + Math.PI/2; // heading to Three.js rotation
+  
+  // Simple leg animation (bob up/down slightly while moving)
+  const speed = segDur > 0 ? Math.sqrt((b.x-a.x)**2 + (b.y-a.y)**2) / segDur : 0;
+  if (speed > 0.05) {
+    const walk = Math.sin(robotTime * 8) * 0.008; // subtle body bob
+    robotGroup.position.y += walk;
+  }
+}
+
+/* ─── Screenshot ─── */
+function takeScreenshot() {
+  // Render one clean frame
+  renderer.render(scene, camera);
+  
+  // Grab canvas as blob
+  renderer.domElement.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `robodog-3d_${Date.now()}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+}
+
 /* ─── Render Loop ─── */
 function tick() {
   requestAnimationFrame(tick);
@@ -675,10 +822,13 @@ function tick() {
     if (deltaForward !== 0) controls.moveForward(deltaForward);
     
     // Keep camera above floor level
-    if (camera.position.y < 1.5) {
-      camera.position.y = 1.5; // Don't drop below human height
+    if (camera.position.y < 1.6) {
+      camera.position.y = 1.6; // Don't drop below human height
     }
   }
+
+  // Update robot dog replay
+  updateRobot(dt);
 
   // Flashlight follows camera
   flashLight.position.copy(camera.position);
