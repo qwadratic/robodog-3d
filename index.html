@@ -319,15 +319,17 @@ async function main() {
       camera.position.set(x, 1.65, -y); // Human eye height
     }
     
-    setProgress(100, 'Ready!');
+    setProgress(100, '✅ Ready — click to enter');
+    // Brief flash of "ready" then show the splash/enter screen
     setTimeout(() => {
       $('loading').classList.add('hidden'); 
       $('blocker').classList.remove('hidden');
-    }, 300);
+    }, 400);
     
   } catch (e) {
     console.error('Loading failed:', e);
-    $('load-status').textContent = 'Loading failed. Check console.';
+    $('load-status').textContent = `❌ Failed: ${e.message || e}. Reload to retry.`;
+    $('load-bar').style.background = '#ff4444';
   }
 
   setupEvents();
@@ -432,10 +434,13 @@ async function buildModel() {
         'assets/model.glb',
         resolve,
         (progress) => {
-          const percent = 60 + (progress.loaded / progress.total) * 35;
-          setProgress(percent, 'Loading 3D model…');
+          if (progress.total > 0) {
+            const percent = 60 + (progress.loaded / progress.total) * 35;
+            const mb = (progress.loaded / 1e6).toFixed(1);
+            setProgress(Math.min(percent, 95), `Loading 3D model… ${mb} MB`);
+          }
         },
-        reject
+        (err) => reject(err || new Error('GLB load failed'))
       );
     });
     
@@ -468,9 +473,11 @@ async function buildModel() {
     });
     
     modelGroup.add(model);
+    console.log(`Model loaded: ${Math.round(totalTris)} tris`);
     
   } catch (e) {
     console.error('Failed to load model:', e);
+    throw e;  // propagate so loading screen shows error
   }
 }
 
