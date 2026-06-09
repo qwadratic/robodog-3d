@@ -5,7 +5,7 @@ import { PointerLockControls } from 'three/addons/controls/PointerLockControls.j
 /* ─── State ─── */
 let scene, camera, renderer, controls;
 let modelGroup, pcGroup, flashLight, flashTarget, trajLine;
-const clock = new THREE.Clock();
+const timer = new THREE.Timer();
 let pointCloudVisible = false;
 let totalPoints = 0, totalTris = 0;
 let metadata = null;
@@ -398,7 +398,8 @@ function takeScreenshot() {
 function tick() {
   requestAnimationFrame(tick);
   const now = performance.now();
-  const dt = Math.min(clock.getDelta(), 0.1);
+  timer.update();
+  const dt = Math.min(timer.getDelta(), 0.1);
 
   if (controls.isLocked) {
     const speed = move.sprint ? SPRINT : WALK;
