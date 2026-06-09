@@ -22,7 +22,8 @@ OUT_DIR = Path(__file__).parent / "output"
 OUT_DIR.mkdir(exist_ok=True)
 
 # --- Parameters ---
-VOXEL_SIZE = 0.03          # 3cm voxel downsampling for accumulated cloud
+import sys
+VOXEL_SIZE = float(sys.argv[1]) if len(sys.argv) > 1 else 0.01  # default 1cm, override via CLI
 GRID_RES = 0.02            # 2cm per pixel in floor plan
 WALL_Z_MIN = 0.3           # min height for wall slice (above floor)
 WALL_Z_MAX = 2.2           # max height for wall slice

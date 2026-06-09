@@ -85,11 +85,19 @@ traj_grid[tiy, tix] = True
 traj_near = ndimage.binary_dilation(traj_grid, iterations=25)
 floor_valid = floor_grid & traj_near
 
-# Wall density grid (how many wall points per cell)
+# Wall density grid (how many wall points per cell) — this IS our occupancy probability
 wall_density = np.zeros((GH, GW), dtype=np.int32)
 wix, wiy = to_grid(cloud[is_wall][:,:2])
 np.add.at(wall_density, (wiy, wix), 1)
-wall_cells = wall_density >= 3  # at least 3 points = real wall
+wall_cells = wall_density >= 2  # at least 2 points
+
+# Occupancy probability: normalize density to [0, 1]
+# More points = higher confidence this cell is a wall
+# Use log scale: 2 pts = low confidence, 50+ pts = near certain
+wall_prob = np.zeros((GH, GW), dtype=np.float32)
+wall_prob[wall_cells] = np.clip(np.log1p(wall_density[wall_cells]) / np.log1p(50), 0.15, 1.0)
+print(f"  Wall probability: min={wall_prob[wall_cells].min():.2f}, "
+      f"median={np.median(wall_prob[wall_cells]):.2f}, max={wall_prob[wall_cells].max():.2f}")
 
 # Furniture grid
 furn_density = np.zeros((GH, GW), dtype=np.int32)
@@ -175,42 +183,45 @@ if cv:
     add_mesh(np.array(cv), np.array(ct), np.array(cc))
 print(f"  {len(ct)} triangles")
 
-# --- WALLS (voxelized) ---
-print("Building walls (every occupied cell → surface)...")
+# --- WALLS (voxelized with occupancy probability) ---
+print("Building walls (probability-based opacity)...")
 wv, wt, wc = [], [], []
 vi = 0
-wall_color_base = np.array([0.55, 0.53, 0.50])
 
-# For each wall cell, place a thin vertical quad facing the open side
+# Color: brighter = more confident, darker = less confident
+# High prob (>0.8): solid warm gray
+# Low prob (0.15-0.4): dark, hint of blue (uncertain)
 for gy in range(GH):
     for gx in range(GW):
         if not wall_cells[gy, gx]:
             continue
+        prob = wall_prob[gy, gx]
         x0 = x_min + gx * GRID
         y0 = y_min + gy * GRID
-        xc = x0 + GRID/2
-        yc = y0 + GRID/2
 
-        # Check which neighbors are NOT walls → face that direction
+        # Only render faces exposed to non-wall neighbors
         faces_to_build = []
-        if gx == 0 or not wall_cells[gy, gx-1]:
-            faces_to_build.append('west')
-        if gx == GW-1 or not wall_cells[gy, gx+1]:
-            faces_to_build.append('east')
-        if gy == 0 or not wall_cells[gy-1, gx]:
-            faces_to_build.append('south')
-        if gy == GH-1 or not wall_cells[gy+1, gx]:
-            faces_to_build.append('north')
-
+        if gx == 0 or not wall_cells[gy, gx-1]:  faces_to_build.append('west')
+        if gx == GW-1 or not wall_cells[gy, gx+1]: faces_to_build.append('east')
+        if gy == 0 or not wall_cells[gy-1, gx]:   faces_to_build.append('south')
+        if gy == GH-1 or not wall_cells[gy+1, gx]: faces_to_build.append('north')
         if not faces_to_build:
-            continue  # interior wall cell, no visible face
+            continue
 
-        # Color variation
-        noise = 0.02 * np.sin(gx * 1.3 + gy * 0.9)
-        col = wall_color_base + noise
-        # Darken at floor/ceiling junctions
-        col_bottom = col * 0.75
-        col_top = col * 0.90
+        # Color based on probability
+        # High confidence: warm gray (0.55, 0.53, 0.50)
+        # Low confidence: cool dark (0.20, 0.22, 0.28)
+        t = prob  # 0.15 to 1.0
+        base_r = 0.18 + 0.40 * t
+        base_g = 0.20 + 0.35 * t
+        base_b = 0.26 + 0.26 * t
+        noise = 0.015 * np.sin(gx * 1.3 + gy * 0.9)
+        
+        # Bottom darker (AO), top slightly lighter
+        col_bottom = np.array([base_r + noise, base_g + noise, base_b + noise]) * 0.70
+        col_top = np.array([base_r + noise, base_g + noise, base_b + noise]) * 0.92
+        col_bottom = np.clip(col_bottom, 0, 1)
+        col_top = np.clip(col_top, 0, 1)
 
         for face in faces_to_build:
             if face == 'west':
@@ -229,7 +240,10 @@ for gy in range(GH):
 
 if wv:
     add_mesh(np.array(wv), np.array(wt), np.array(wc))
+n_low = (wall_prob[wall_cells] < 0.4).sum()
+n_high = (wall_prob[wall_cells] >= 0.7).sum()
 print(f"  {wall_cells.sum()} wall cells → {len(wt)} triangles")
+print(f"  Confidence: {n_high} high (≥0.7), {n_low} low (<0.4)")
 
 # --- FURNITURE (schematic: thin vertical lines + floor shadow) ---
 print("Building furniture (schematic)...")

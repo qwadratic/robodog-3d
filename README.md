@@ -21,7 +21,7 @@ A robot dog walked through an indoor space for 4 minutes with a solid-state LiDA
 
 ### Features
 
-- **5,611 wall cells** — voxelized: every cell with wall data → vertical surface
+- **6,028 wall cells** — voxelized with occupancy probability (bright = confident, dark = uncertain)
 - **11 ghost walls** (inferred from point cloud density boundaries)
 - **289 furniture objects** — schematic: floor shadows + wireframe edges + top cap
 - **Flat floor** with ambient occlusion near walls
@@ -65,9 +65,8 @@ The `scripts/` folder contains the Python pipeline that generates the 3D model f
 
 | Script | Purpose |
 |--------|--------|
-| `extract_floorplan.py` | Read MCAP, accumulate 41.5M points, downsample, save NPZ |
-| `rebuild_hires.py` | Re-downsample at 1cm from scan cache (678K → 2.16M points) |
-| `build_clean_model.py` | Classify points, build voxelized walls + floor + ceiling + furniture |
+| `extract_floorplan.py` | Read MCAP, accumulate 41.5M points, downsample (default 1cm), save NPZ |
+| `build_clean_model.py` | Classify points, build probabilistic voxelized walls + floor + ceiling + furniture |
 | `export_ghost_walls.py` | Detect ghost walls from point cloud boundaries + export collision data |
 
 Requires: `pip install open3d mcap mcap-ros2-support scipy numpy matplotlib pillow`
