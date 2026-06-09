@@ -1,17 +1,13 @@
 {
   "pointCount": 40000,
-  "triangleCount": 11972,
-  "wallCount": 22,
-  "furnitureCount": 40,
+  "triangleCount": 11898,
+  "wallCount": 21,
+  "ghostWallCount": 11,
+  "furnitureCount": 42,
   "trajectoryCount": 103,
-  "floorZ": -0.004,
-  "ceilingZ": 2.155,
-  "bounds": {
-    "xMin": -12.43,
-    "xMax": 14.55,
-    "yMin": -15.50,
-    "yMax": 7.70
-  },
+  "sourceResolution": "1cm voxel (2.16M points from 41.5M raw)",
+  "floorZ": -0.02,
+  "ceilingZ": 2.15,
   "robotStart": [1.495, -4.056, 0.317],
   "coordinateSystem": "Z-up (convert to Y-up for Three.js)"
 }

@@ -1,123 +1,73 @@
 # 🐕 Robodog 3D — LiDAR Space Reconstruction
 
-**Interactive Three.js viewer for LiDAR-reconstructed indoor spaces from a Unitree Go2 robot dog.**
+Interactive Three.js viewer for a LiDAR-reconstructed indoor space from a **Unitree Go2** robot dog.
 
 ## 🚀 [Live Demo](https://qwadratic.github.io/robodog-3d/)
 
-![Robodog 3D Screenshot](screenshot.png)
+![Screenshot](screenshot.png)
 
-## 🎯 What is this?
+## What is this?
 
-This project reconstructs a 3D architectural model from raw LiDAR point cloud data collected by a **Unitree Go2** robot dog walking through an indoor space. The web viewer lets you explore the reconstructed environment in first-person mode with real-time rendering.
+A robot dog walked through an indoor space for 4 minutes with a solid-state LiDAR (15 Hz, 41.5M points total). From that single scan, we reconstructed a 3D architectural model and deployed it as an interactive first-person walkthrough.
 
-### Key Features
+### Pipeline
 
-- **84,750 point cloud** with height-based coloring (blue→green→yellow→red)
-- **21,252 triangle mesh** with procedural wall connectivity bridges  
-- **Wood plank floors** with grain variation and ambient occlusion
-- **Intelligent ceiling placement** only in enclosed rooms
-- **Robot trajectory visualization** (205 waypoints from the actual walk)
-- **First-person exploration** with WASD+mouse controls and flashlight
-- **Multiple view modes**: Point Cloud / Model / Both overlaid
+1. **Raw data**: 2GB MCAP file (ROS2 rosbag) → 41.5M deskewed LiDAR points + SLAM odometry
+2. **Downsample**: 1cm voxel grid → 2.16M unique points
+3. **Classify**: surface normals + height → floor / wall / ceiling / object
+4. **Reconstruct**: PCA wall detection, floor tiling, ceiling placement, furniture clustering
+5. **Ghost walls**: point cloud boundary heuristic — where density drops abruptly = wall
+6. **Export**: GLB model (1MB) + minimap + collision data → Three.js viewer
+
+### Features
+
+- **21 detected walls** (2D PCA: must be >0.5m long, <0.25m thick, >3x elongated)
+- **11 ghost walls** (inferred from point cloud density boundaries)
+- **42 furniture objects** (DBSCAN clusters at furniture height)
+- **Wood plank floors** with procedural grain + ambient occlusion
+- **Ceiling only in enclosed rooms** (enclosure detection via flood-fill)
+- **Baseboards** at wall/floor junctions
+- **Minimap** with real-time position + FOV cone
+- **Collision detection** against real walls
+- **Low coverage warning** in barely-scanned areas
 
 ## 🎮 Controls
 
 | Key | Action |
 |-----|--------|
-| **WASD** | Move around |
-| **Mouse** | Look around (click to lock pointer) |
+| **Click** | Lock mouse (enter first-person) |
+| **WASD** | Move |
+| **Mouse** | Look around |
 | **Shift** | Sprint |
-| **1** | Point cloud only |
-| **2** | Model only |
-| **3** | Both overlaid |
-| **ESC** | Exit pointer lock |
+| **P** | Toggle point cloud overlay (loaded on demand) |
+| **G** | Toggle ghost walls (inferred boundaries) |
+| **ESC** | Release mouse |
 
-## 📊 Technical Details
+## Tech
 
-### Data Processing Pipeline
+- Single `index.html` — no build step
+- Three.js from CDN (importmap + modulepreload)
+- PointerLockControls for first-person navigation
+- Assets loaded in parallel with `<link rel="preload">`
+- Point cloud lazy-loaded only on P key press
+- Total payload: ~1.4MB
 
-1. **MCAP Scan Data** → 41.5M raw LiDAR points from Unitree Go2
-2. **Spatial Analysis** → Surface normals, height clustering, wall detection
-3. **Wall Connectivity** → PCA-based clustering + 30cm gap bridging  
-4. **Mesh Generation** → Floor grids, ceiling enclosure detection, furniture boxes
-5. **Web Export** → Downsampled point cloud + GLB model + trajectory JSON
+## Data source
 
-### Model Architecture
+- **Robot**: Unitree Go2 quadruped
+- **LiDAR**: Unitree L1 solid-state, 15 Hz
+- **Recording**: 4 minutes, 39.8m path, ~38m² covered
+- **Format**: MCAP (ROS2 rosbag2, libmcap 1.3.1)
 
-- **137 base wall segments** + **57 connectivity bridges** = **194 total walls**
-- **Wood floor**: 8cm resolution with procedural grain patterns
-- **Smart ceiling**: Only rendered in enclosed room areas (20.7 m²)
-- **40 furniture objects** detected via DBSCAN clustering
-- **Baseboards** at every wall-floor junction
-
-### File Structure
-
-```
-robodog-3d/
-├── index.html              # Three.js viewer (zero build step)
-├── assets/
-│   ├── model.glb           # 3D architectural mesh (1.6 MB)
-│   ├── pointcloud.bin      # Height-colored points (2.0 MB) 
-│   ├── trajectory.json     # Robot waypoints (12.8 KB)
-│   └── metadata.json       # Scene bounds and parameters
-└── README.md
-```
-
-## 🔧 Local Development
+## Local development
 
 ```bash
-# Clone the repository
 git clone https://github.com/qwadratic/robodog-3d.git
 cd robodog-3d
-
-# Serve locally (required for CORS)
-python -m http.server 8000
-# or
-npx serve
-
+python3 -m http.server 8000
 # Open http://localhost:8000
 ```
 
-## 📡 Data Sources
-
-- **Robot**: Unitree Go2 quadruped with integrated LiDAR
-- **Recording**: 4-minute walkaround of indoor office space
-- **Raw data**: 3,701 scans, 41.5M points, 618 m² explored area
-- **Environment**: Floor 0.0m, ceiling 2.15m, mixed room layouts
-
-## 🛠️ Technologies
-
-- **Three.js** — WebGL 3D rendering and controls
-- **Open3D** — Point cloud processing and mesh generation  
-- **Python** — Spatial analysis and wall connectivity algorithms
-- **GitHub Pages** — Zero-config deployment
-
-## 🎨 Coordinate System
-
-The data uses **Z-up coordinates** from the robot's SLAM system, converted to **Y-up** for Three.js:
-
-```javascript
-// MCAP → Three.js conversion
-position.x = mcap.x      // X stays X  
-position.y = mcap.z      // Z becomes Y (up)
-position.z = -mcap.y     // Y becomes -Z (forward)
-```
-
-## 🚧 Known Limitations
-
-- **No camera data**: Walls are procedurally textured (no photorealistic surfaces)
-- **Geometric reconstruction only**: Missing windows, doors, detailed furniture
-- **2.2m ceiling height**: Limited vertical exploration range
-
-## 🔮 Future Improvements
-
-- **Camera fusion**: Add RGB textures from synchronized camera data
-- **Gaussian Splatting**: Neural radiance fields for photorealistic rendering
-- **Room segmentation**: Semantic labeling (kitchen, bedroom, etc.)
-- **Physics**: Collision detection and gravity simulation
-
 ---
 
-**Built with LiDAR data from a robot dog's indoor exploration.** 🐕‍🦺
-
-*Made by [@qwadratic](https://github.com/qwadratic)*
+*Built by [@qwadratic](https://github.com/qwadratic)*

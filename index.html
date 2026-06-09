@@ -26,7 +26,7 @@
 
 <!-- Preload assets -->
 <link rel="preload" href="assets/model.glb" as="fetch" crossorigin>
-<link rel="preload" href="assets/pointcloud.bin" as="fetch" crossorigin>
+<!-- pointcloud.bin loaded lazily on P key press -->
 <link rel="preload" href="assets/minimap.png" as="image">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -176,7 +176,7 @@ canvas { display: block; }
     <h1>🐕 ROBODOG 3D</h1>
     <div class="sub">
       LiDAR-reconstructed indoor space from a Unitree Go2 robot dog<br>
-      40,000 points • 12,000 triangles • 22 walls • 40 objects
+      2.16M points • 1cm resolution • 21 walls • 42 objects
     </div>
     <div class="start-btn" id="start-btn">ENTER SPACE</div>
     <div class="controls-hint">
@@ -305,7 +305,7 @@ async function main() {
     const [metaRes, trajRes, pcRes, collRes, ghostRes, covRes] = await Promise.all([
       fetch('assets/metadata.json').then(r => r.json()),
       fetch('assets/trajectory.json').then(r => r.json()),
-      fetch('assets/pointcloud.bin').then(r => r.arrayBuffer()),
+      Promise.resolve(null),  // pointcloud loaded lazily via P key
       fetch('assets/walls_collision.json').then(r => r.json()),
       fetch('assets/walls_assumed.json').then(r => r.json()),
       fetch('assets/coverage.json').then(r => r.json()),
@@ -320,7 +320,7 @@ async function main() {
     
     // Build trajectory + point cloud from prefetched data (fast, no network)
     buildTrajectoryFromData(trajRes);
-    buildPointCloudFromBuffer(pcRes);
+    if (pcRes) buildPointCloudFromBuffer(pcRes);  // null on initial load, lazy via P
     
     setProgress(60, 'Loading 3D model…');
     await buildModel();
@@ -606,7 +606,21 @@ function setupEvents() {
 }
 
 /* ─── View Toggle ─── */
-function togglePointCloud() {
+let pcLoaded = false;
+async function togglePointCloud() {
+  if (!pcLoaded) {
+    const el = $('hint-pts');
+    if (el) { el.textContent = 'loading...'; el.className = ''; }
+    try {
+      const buffer = await fetch('assets/pointcloud.bin').then(r => r.arrayBuffer());
+      buildPointCloudFromBuffer(buffer);
+      pcLoaded = true;
+    } catch(e) {
+      console.warn('Failed to load point cloud:', e);
+      if (el) el.textContent = 'error';
+      return;
+    }
+  }
   pointCloudVisible = !pointCloudVisible;
   pcGroup.visible = pointCloudVisible;
   const el = $('hint-pts');
