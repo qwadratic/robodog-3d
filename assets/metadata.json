@@ -1,10 +1,7 @@
 {
-  "pointCount": 40000,
-  "triangleCount": 11898,
-  "wallCount": 21,
-  "ghostWallCount": 11,
-  "furnitureCount": 42,
-  "trajectoryCount": 103,
+  "triangleCount": 32966,
+  "wallCells": 5611,
+  "furnitureCount": 289,
   "sourceResolution": "1cm voxel (2.16M points from 41.5M raw)",
   "floorZ": -0.02,
   "ceilingZ": 2.15,
