@@ -14,19 +14,19 @@ A robot dog walked through an indoor space for 4 minutes with a solid-state LiDA
 
 1. **Raw data**: 2GB MCAP file (ROS2 rosbag) → 41.5M deskewed LiDAR points + SLAM odometry
 2. **Downsample**: 1cm voxel grid → 2.16M unique points
-3. **Classify**: surface normals + height → floor / wall / ceiling / object
-4. **Reconstruct**: PCA wall detection, floor tiling, ceiling placement, furniture clustering
+3. **Classify**: surface normals + height → floor / wall / ceiling / furniture
+4. **Reconstruct**: voxelized walls (every occupied cell), flat floor/ceiling, schematic furniture
 5. **Ghost walls**: point cloud boundary heuristic — where density drops abruptly = wall
 6. **Export**: GLB model (1MB) + minimap + collision data → Three.js viewer
 
 ### Features
 
-- **21 detected walls** (2D PCA: must be >0.5m long, <0.25m thick, >3x elongated)
+- **5,611 wall cells** — voxelized: every cell with wall data → vertical surface
 - **11 ghost walls** (inferred from point cloud density boundaries)
-- **42 furniture objects** (DBSCAN clusters at furniture height)
-- **Wood plank floors** with procedural grain + ambient occlusion
-- **Ceiling only in enclosed rooms** (enclosure detection via flood-fill)
-- **Baseboards** at wall/floor junctions
+- **289 furniture objects** — schematic: floor shadows + wireframe edges + top cap
+- **Flat floor** with ambient occlusion near walls
+- **Flat ceiling** only in enclosed rooms (34.2 m²)
+- **Human-height camera** (1.6m eye level)
 - **Minimap** with real-time position + FOV cone
 - **Collision detection** against real walls
 - **Low coverage warning** in barely-scanned areas
@@ -50,7 +50,7 @@ A robot dog walked through an indoor space for 4 minutes with a solid-state LiDA
 - PointerLockControls for first-person navigation
 - Assets loaded in parallel with `<link rel="preload">`
 - Point cloud lazy-loaded only on P key press
-- Total payload: ~1.4MB
+- Total payload: ~4MB
 
 ## Data source
 
@@ -58,6 +58,19 @@ A robot dog walked through an indoor space for 4 minutes with a solid-state LiDA
 - **LiDAR**: Unitree L1 solid-state, 15 Hz
 - **Recording**: 4 minutes, 39.8m path, ~38m² covered
 - **Format**: MCAP (ROS2 rosbag2, libmcap 1.3.1)
+
+## Reconstruction scripts
+
+The `scripts/` folder contains the Python pipeline that generates the 3D model from raw LiDAR data:
+
+| Script | Purpose |
+|--------|--------|
+| `extract_floorplan.py` | Read MCAP, accumulate 41.5M points, downsample, save NPZ |
+| `rebuild_hires.py` | Re-downsample at 1cm from scan cache (678K → 2.16M points) |
+| `build_clean_model.py` | Classify points, build voxelized walls + floor + ceiling + furniture |
+| `export_ghost_walls.py` | Detect ghost walls from point cloud boundaries + export collision data |
+
+Requires: `pip install open3d mcap mcap-ros2-support scipy numpy matplotlib pillow`
 
 ## Local development
 

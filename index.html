@@ -256,7 +256,7 @@ async function main() {
 
   // Camera
   camera = new THREE.PerspectiveCamera(85, innerWidth/innerHeight, 0.05, 120);
-  camera.position.set(1.5, 1.2, 4.0); // Default position
+  camera.position.set(1.5, 1.6, 4.0); // Default: human eye height (~1.6m)
 
   // Renderer
   renderer = new THREE.WebGLRenderer({ 
@@ -331,7 +331,7 @@ async function main() {
     // Set camera start position
     if (metadata && metadata.robotStart) {
       const [x, y, z] = metadata.robotStart;
-      camera.position.set(x, z + 1.2, -y);
+      camera.position.set(x, 1.6, -y); // Human eye height, ignore robot z
     }
     
     setProgress(100, 'Ready!');
@@ -842,8 +842,8 @@ function tick() {
     }
     
     // Keep camera above floor level
-    if (camera.position.y < 0.5) {
-      camera.position.y = 0.5;
+    if (camera.position.y < 1.5) {
+      camera.position.y = 1.5; // Don't drop below human height
     }
   }
 
