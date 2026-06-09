@@ -183,66 +183,107 @@ if cv:
     add_mesh(np.array(cv), np.array(ct), np.array(cc))
 print(f"  {len(ct)} triangles")
 
-# --- WALLS (voxelized with occupancy probability) ---
-print("Building walls (probability-based opacity)...")
+# --- WALLS (greedy meshing: merge adjacent coplanar faces into flat quads) ---
+print("Building walls (greedy meshing + probability)...")
 wv, wt, wc = [], [], []
 vi = 0
 
-# Color: brighter = more confident, darker = less confident
-# High prob (>0.8): solid warm gray
-# Low prob (0.15-0.4): dark, hint of blue (uncertain)
-for gy in range(GH):
-    for gx in range(GW):
-        if not wall_cells[gy, gx]:
-            continue
-        prob = wall_prob[gy, gx]
-        x0 = x_min + gx * GRID
-        y0 = y_min + gy * GRID
+# Build exposed-face masks for each direction
+# face_west[gy,gx] = True if cell (gy,gx) has wall but (gy,gx-1) does not
+face_west  = wall_cells & ~np.roll(wall_cells, 1, axis=1)
+face_east  = wall_cells & ~np.roll(wall_cells, -1, axis=1)
+face_south = wall_cells & ~np.roll(wall_cells, 1, axis=0)
+face_north = wall_cells & ~np.roll(wall_cells, -1, axis=0)
+# Fix edges
+face_west[:, 0] = wall_cells[:, 0]
+face_east[:, -1] = wall_cells[:, -1]
+face_south[0, :] = wall_cells[0, :]
+face_north[-1, :] = wall_cells[-1, :]
 
-        # Only render faces exposed to non-wall neighbors
-        faces_to_build = []
-        if gx == 0 or not wall_cells[gy, gx-1]:  faces_to_build.append('west')
-        if gx == GW-1 or not wall_cells[gy, gx+1]: faces_to_build.append('east')
-        if gy == 0 or not wall_cells[gy-1, gx]:   faces_to_build.append('south')
-        if gy == GH-1 or not wall_cells[gy+1, gx]: faces_to_build.append('north')
-        if not faces_to_build:
-            continue
+def prob_to_color(prob):
+    """Map occupancy probability to wall color (bright=confident, dark=uncertain)."""
+    t = np.clip(prob, 0.15, 1.0)
+    r = 0.18 + 0.40 * t
+    g = 0.20 + 0.35 * t
+    b = 0.26 + 0.26 * t
+    return np.array([r, g, b])
 
-        # Color based on probability
-        # High confidence: warm gray (0.55, 0.53, 0.50)
-        # Low confidence: cool dark (0.20, 0.22, 0.28)
-        t = prob  # 0.15 to 1.0
-        base_r = 0.18 + 0.40 * t
-        base_g = 0.20 + 0.35 * t
-        base_b = 0.26 + 0.26 * t
-        noise = 0.015 * np.sin(gx * 1.3 + gy * 0.9)
-        
-        # Bottom darker (AO), top slightly lighter
-        col_bottom = np.array([base_r + noise, base_g + noise, base_b + noise]) * 0.70
-        col_top = np.array([base_r + noise, base_g + noise, base_b + noise]) * 0.92
-        col_bottom = np.clip(col_bottom, 0, 1)
-        col_top = np.clip(col_top, 0, 1)
+def greedy_merge_faces(face_mask, direction):
+    """Merge adjacent exposed faces along a wall plane into large quads.
+    Returns list of (fixed_coord, span_start, span_end, avg_probability)."""
+    segments = []
+    if direction in ('west', 'east'):  
+        # Fixed X, spans along Y. Iterate each column (gx).
+        for gx in range(GW):
+            # Find runs of True in this column
+            col = face_mask[:, gx]
+            in_run = False
+            run_start = 0
+            for gy in range(GH + 1):
+                active = col[gy] if gy < GH else False
+                if active and not in_run:
+                    run_start = gy
+                    in_run = True
+                elif not active and in_run:
+                    # End of run: cells [run_start, gy)
+                    probs = wall_prob[run_start:gy, gx]
+                    avg_p = float(probs.mean())
+                    x_fixed = x_min + gx * GRID if direction == 'west' else x_min + (gx + 1) * GRID
+                    y_start = y_min + run_start * GRID
+                    y_end = y_min + gy * GRID
+                    segments.append((x_fixed, y_start, y_end, avg_p))
+                    in_run = False
+    else:  # south, north
+        # Fixed Y, spans along X. Iterate each row (gy).
+        for gy in range(GH):
+            row = face_mask[gy, :]
+            in_run = False
+            run_start = 0
+            for gx in range(GW + 1):
+                active = row[gx] if gx < GW else False
+                if active and not in_run:
+                    run_start = gx
+                    in_run = True
+                elif not active and in_run:
+                    probs = wall_prob[gy, run_start:gx]
+                    avg_p = float(probs.mean())
+                    y_fixed = y_min + gy * GRID if direction == 'south' else y_min + (gy + 1) * GRID
+                    x_start = x_min + run_start * GRID
+                    x_end = x_min + gx * GRID
+                    segments.append((y_fixed, x_start, x_end, avg_p))
+                    in_run = False
+    return segments
 
-        for face in faces_to_build:
-            if face == 'west':
-                p = [[x0,y0,floor_z],[x0,y0+GRID,floor_z],[x0,y0+GRID,ceil_z],[x0,y0,ceil_z]]
-            elif face == 'east':
-                p = [[x0+GRID,y0,floor_z],[x0+GRID,y0+GRID,floor_z],[x0+GRID,y0+GRID,ceil_z],[x0+GRID,y0,ceil_z]]
-            elif face == 'south':
-                p = [[x0,y0,floor_z],[x0+GRID,y0,floor_z],[x0+GRID,y0,ceil_z],[x0,y0,ceil_z]]
-            elif face == 'north':
-                p = [[x0,y0+GRID,floor_z],[x0+GRID,y0+GRID,floor_z],[x0+GRID,y0+GRID,ceil_z],[x0,y0+GRID,ceil_z]]
+total_quads = 0
+for direction, face_mask in [('west', face_west), ('east', face_east),
+                              ('south', face_south), ('north', face_north)]:
+    segs = greedy_merge_faces(face_mask, direction)
+    for seg in segs:
+        if direction in ('west', 'east'):
+            x_fixed, y_start, y_end, prob = seg
+            p = [[x_fixed, y_start, floor_z], [x_fixed, y_end, floor_z],
+                 [x_fixed, y_end, ceil_z], [x_fixed, y_start, ceil_z]]
+        else:
+            y_fixed, x_start, x_end, prob = seg
+            p = [[x_start, y_fixed, floor_z], [x_end, y_fixed, floor_z],
+                 [x_end, y_fixed, ceil_z], [x_start, y_fixed, ceil_z]]
 
-            wv.extend(p)
-            wt.extend([[vi,vi+1,vi+2],[vi,vi+2,vi+3]])
-            wc.extend([col_bottom.tolist(), col_bottom.tolist(), col_top.tolist(), col_top.tolist()])
-            vi += 4
+        col = prob_to_color(prob)
+        col_bottom = np.clip(col * 0.70, 0, 1).tolist()
+        col_top = np.clip(col * 0.95, 0, 1).tolist()
+
+        wv.extend(p)
+        wt.extend([[vi, vi+1, vi+2], [vi, vi+2, vi+3]])
+        wc.extend([col_bottom, col_bottom, col_top, col_top])
+        vi += 4
+        total_quads += 1
 
 if wv:
     add_mesh(np.array(wv), np.array(wt), np.array(wc))
 n_low = (wall_prob[wall_cells] < 0.4).sum()
 n_high = (wall_prob[wall_cells] >= 0.7).sum()
-print(f"  {wall_cells.sum()} wall cells → {len(wt)} triangles")
+print(f"  {wall_cells.sum()} wall cells → {total_quads} flat quads ({total_quads*2} tris)")
+print(f"  Reduction: {wall_cells.sum()*4} per-cell faces → {total_quads} merged quads")
 print(f"  Confidence: {n_high} high (≥0.7), {n_low} low (<0.4)")
 
 # --- FURNITURE (schematic: thin vertical lines + floor shadow) ---
